@@ -254,7 +254,7 @@ Status ImplementationSelector::MaybeOptimizeFunctionCall(
   if (noimpl_selection) {
     VLOG(2) << "Don't optimize node " << node_def->name() << " because of "
             << kNoImplSelectionAttr << " attribute";
-    return Status::OK();
+    return OkStatus();
   }
 
   std::vector<string> function_attribute_names;
@@ -330,7 +330,7 @@ Status ImplementationSelector::MaybeOptimizeFunctionCall(
     TF_RETURN_IF_ERROR(lib_info_->GetEquivalentImplementations(
         node_def->op(), &equiv_func_names));
     StringPiece device_type = select_device(node_def->op(), equiv_func_names);
-    if (device_type.empty()) return Status::OK();
+    if (device_type.empty()) return OkStatus();
 
     for (const string& func_name : equiv_func_names) {
       const auto func_api_info = lib_info_->GetApiInfo(func_name);
