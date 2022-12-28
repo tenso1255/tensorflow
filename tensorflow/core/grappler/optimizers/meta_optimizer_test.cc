@@ -22,6 +22,7 @@ limitations under the License.
 #include "tensorflow/cc/ops/standard_ops.h"
 #include "tensorflow/core/common_runtime/device/device_id_manager.h"
 #include "tensorflow/core/framework/dataset.h"
+#include "tensorflow/core/framework/device_factory.h"
 #include "tensorflow/core/framework/function_testlib.h"
 #include "tensorflow/core/framework/graph.pb.h"
 #include "tensorflow/core/framework/tensor_testutil.h"
@@ -139,13 +140,29 @@ std::unique_ptr<Device> Dev(const char* type, const char* name) {
     Allocator* GetAllocator(AllocatorAttributes) override { return nullptr; }
   };
 
-  DeviceIdManager::InsertTfPlatformDeviceIdPair(type, TfDeviceId(0),
-                                                PlatformDeviceId(0));
+  auto st = DeviceIdManager::InsertTfPlatformDeviceIdPair(type, TfDeviceId(0),
+                                                          PlatformDeviceId(0));
+  if (!st.ok()) {
+    return nullptr;
+  }
+
   DeviceAttributes attr;
   attr.set_name(name);
   attr.set_device_type(type);
   return std::unique_ptr<FakeDevice>(new FakeDevice(attr));
 }
+
+class NoOpDeviceFactory : public DeviceFactory {
+ public:
+  Status ListPhysicalDevices(std::vector<string>* devices) override {
+    return OkStatus();
+  }
+
+  Status CreateDevices(const SessionOptions& options, const string& name_prefix,
+                       std::vector<std::unique_ptr<Device>>* devices) override {
+    return OkStatus();
+  }
+};
 
 class MetaOptimizerTest : public GrapplerTest {};
 
@@ -568,6 +585,14 @@ TEST_F(MetaOptimizerTest, OptimizeFunctionLibrarySelectImplementation) {
 
   std::unique_ptr<Device> cpu_device = Dev("CPU", "/CPU:0");
   std::unique_ptr<Device> gpu_device = Dev("GPU", "/GPU:0");
+  ASSERT_TRUE(cpu_device);
+  ASSERT_TRUE(gpu_device);
+  if (!DeviceFactory::GetFactory(gpu_device->device_type())) {
+    int cpu_priority = DeviceFactory::DevicePriority(cpu_device->device_type());
+    DeviceFactory::Register(gpu_device->device_type(),
+                            std::make_unique<NoOpDeviceFactory>(),
+                            cpu_priority + 1, false);
+  }
   DeviceSet device_set;
   device_set.AddDevice(cpu_device.get());
   device_set.AddDevice(gpu_device.get());
