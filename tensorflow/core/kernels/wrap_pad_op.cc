@@ -113,6 +113,7 @@ class WrapPadOp : public OpKernel {
 };
 
 using CpuDevice = Eigen::ThreadPoolDevice;
+using GpuDevice = Eigen::GpuDevice;
 
 namespace functor {
 // Forward declarations of the functor specializations defined in the sharded
@@ -164,5 +165,52 @@ TF_CALL_POD_TYPES(REGISTER_KERNEL);
 TF_CALL_QUANTIZED_TYPES(REGISTER_KERNEL);
 TF_CALL_tstring(REGISTER_KERNEL);
 #undef REGISTER_KERNEL
+
+#if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+namespace functor {
+// Forward declarations of the functor specializations for GPU.
+#define DECLARE_GPU_SPEC(T, Tpaddings, i)                     \
+  template <>                                                 \
+  void WrapPad<GpuDevice, T, Tpaddings, i>::operator()(       \
+      const GpuDevice&, typename TTypes<T, i, int32>::Tensor, \
+      typename TTypes<T, i, int32>::ConstTensor,              \
+      TTypes<Tpaddings>::ConstMatrix);                        \
+  extern template struct WrapPad<GpuDevice, T, Tpaddings, i>;
+
+#define DECLARE_GPU_SPECS(T)       \
+  DECLARE_GPU_SPEC(T, int32, 1);   \
+  DECLARE_GPU_SPEC(T, int32, 2);   \
+  DECLARE_GPU_SPEC(T, int32, 3);   \
+  DECLARE_GPU_SPEC(T, int32, 4);   \
+  DECLARE_GPU_SPEC(T, int32, 5);   \
+  DECLARE_GPU_SPEC(T, int64_t, 1); \
+  DECLARE_GPU_SPEC(T, int64_t, 2); \
+  DECLARE_GPU_SPEC(T, int64_t, 3); \
+  DECLARE_GPU_SPEC(T, int64_t, 4); \
+  DECLARE_GPU_SPEC(T, int64_t, 5);
+
+TF_CALL_GPU_NUMBER_TYPES(DECLARE_GPU_SPECS);
+#undef DECLARE_GPU_SPECS
+#undef DECLARE_GPU_SPEC
+}  // namespace functor
+
+// Registration of the GPU implementations.
+#define REGISTER_GPU_KERNEL(T)                                      \
+  REGISTER_KERNEL_BUILDER(Name("WrapPad")                           \
+                              .Device(DEVICE_GPU)                   \
+                              .TypeConstraint<T>("T")               \
+                              .TypeConstraint<int32>("Tpaddings")   \
+                              .HostMemory("paddings"),              \
+                          WrapPadOp<GpuDevice, T, int32>);          \
+  REGISTER_KERNEL_BUILDER(Name("WrapPad")                           \
+                              .Device(DEVICE_GPU)                   \
+                              .TypeConstraint<T>("T")               \
+                              .TypeConstraint<int64_t>("Tpaddings")  \
+                              .HostMemory("paddings"),              \
+                          WrapPadOp<GpuDevice, T, int64>);
+
+TF_CALL_GPU_NUMBER_TYPES(REGISTER_GPU_KERNEL);
+#undef REGISTER_GPU_KERNEL
+#endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
 }  // namespace tensorflow
