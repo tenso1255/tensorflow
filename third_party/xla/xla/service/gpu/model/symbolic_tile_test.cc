@@ -823,6 +823,22 @@ TEST_F(ConstraintExpressionTest,
 }
 
 TEST_F(ConstraintExpressionTest,
+       ConjunctionOfConstraintsOnTheSameExpressionAreIntersected) {
+  ConstraintExpression constraints;
+
+  constraints.And(GetConjointConstraints({{"d0", Interval{0, 5}}}));
+  EXPECT_THAT(constraints, MatchConstraintExpressionString("d0 in [0, 5]"));
+
+  // Constraints are intersected.
+  constraints.And(GetConjointConstraints({{"d0", Interval{3, 6}}}));
+  EXPECT_THAT(constraints, MatchConstraintExpressionString("d0 in [3, 5]"));
+
+  // Empty intersection results in unsatisfiability.
+  constraints.And(GetConjointConstraints({{"d0", Interval{7, 8}}}));
+  EXPECT_THAT(constraints, MatchConstraintExpressionString("unsatisfiable"));
+}
+
+TEST_F(ConstraintExpressionTest,
        UnsatisfiableConstraintExpressionHoldsNoConstraint) {
   ConstraintExpression unsatisfiable_constraint =
       ConstraintExpression::GetUnsatisfiableConstraintExpression();
