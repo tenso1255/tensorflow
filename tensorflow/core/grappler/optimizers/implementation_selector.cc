@@ -17,8 +17,10 @@ limitations under the License.
 
 #include <string>
 
+#include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "tensorflow/core/framework/node_def.pb.h"
 #include "tensorflow/core/framework/op.h"
@@ -275,8 +277,8 @@ Status ImplementationSelector::MaybeOptimizeFunctionCall(
   if (!node_def->device().empty()) {
     if (!DeviceNameUtils::ParseFullName(node_def->device(), &parsed_name) ||
         !parsed_name.has_type) {
-      return errors::Internal("Could not parse device name:",
-                              node_def->device());
+      return absl::InternalError(absl::StrCat(
+          "Could not parse device name: ", node_def->device()));
     }
     VLOG(2) << "Op " << node_def->name() << " runs on " << node_def->device()
             << " = (" << parsed_name.type << ")";
@@ -285,21 +287,26 @@ Status ImplementationSelector::MaybeOptimizeFunctionCall(
   auto select_device = [&](const string& function_name,
                            const std::vector<string>& equiv_func_names) {
     StringPiece device_type;
-    if (parsed_name.has_type)
+    if (parsed_name.has_type) {
       return StringPiece(parsed_name.type);
-    else if (!cluster)
+    }
+    else if (!cluster) {
       return StringPiece();
+    }
     else if (const DeviceSet* device_set = cluster->GetDeviceSet()) {
       absl::flat_hash_set<StringPiece> specified_devices;
       specified_devices.emplace(
           lib_info_->GetApiInfo(function_name)->preferred_device());
-      for (const string& func_name : equiv_func_names)
+      for (const string& func_name : equiv_func_names) {
         specified_devices.emplace(
             lib_info_->GetApiInfo(func_name)->preferred_device());
+      }
       for (const std::pair<DeviceType, int32>& dt :
-           device_set->prioritized_device_types())
-        if (specified_devices.contains(dt.first.type_string()))
+           device_set->prioritized_device_types()) {
+        if (specified_devices.contains(dt.first.type_string())) {
           return StringPiece(dt.first.type_string());
+        }
+      }
     }
     return StringPiece();
   };
@@ -307,12 +314,16 @@ Status ImplementationSelector::MaybeOptimizeFunctionCall(
   for (const auto& attr_name : function_attribute_names) {
     string function_name = node_def->attr().at(attr_name).func().name();
     // Skip the function if its already optimized by function optimizer.
-    if (::absl::StrContains(function_name, "_specialized_for_")) continue;
+    if (::absl::StrContains(function_name, "_specialized_for_")) {
+      continue;
+    }
     std::vector<string> equiv_func_names;
     TF_RETURN_IF_ERROR(lib_info_->GetEquivalentImplementations(
         function_name, &equiv_func_names));
     StringPiece device_type = select_device(function_name, equiv_func_names);
-    if (device_type.empty()) continue;
+    if (device_type.empty()) {
+      continue;
+    }
 
     for (const auto& func_name : equiv_func_names) {
       const auto& func_api_info = lib_info_->GetApiInfo(func_name);
@@ -330,7 +341,9 @@ Status ImplementationSelector::MaybeOptimizeFunctionCall(
     TF_RETURN_IF_ERROR(lib_info_->GetEquivalentImplementations(
         node_def->op(), &equiv_func_names));
     StringPiece device_type = select_device(node_def->op(), equiv_func_names);
-    if (device_type.empty()) return OkStatus();
+    if (device_type.empty()) {
+      return OkStatus();
+    }
 
     for (const string& func_name : equiv_func_names) {
       const auto func_api_info = lib_info_->GetApiInfo(func_name);

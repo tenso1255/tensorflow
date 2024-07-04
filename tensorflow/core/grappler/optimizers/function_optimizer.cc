@@ -762,7 +762,7 @@ Status SpecializeFunction(const NodeDef& func_node, const FunctionDef& func,
   specialized_func.mutable_signature()->set_name(specialized_func_name);
   auto* specialized_attr = specialized_func.mutable_attr();
   (*specialized_attr)[kGrapplerSpecializedFuncAttr].set_b(true);
-  // Specialization doesn't implements api of original function since it's
+  // Specialization doesn't implements API of original function since its
   // signature changes.
   specialized_attr->erase("api_implements");
   specialized_attr->erase("api_preferred_device");
