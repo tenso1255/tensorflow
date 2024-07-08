@@ -3347,11 +3347,13 @@ tf_cc_tests(
         "restore_v2_op_test.cc",
         "save_op_test.cc",
         "save_v2_op_test.cc",
+        "wrap_pad_op_test.cc",
     ],
     deps = [
         ":io",
         ":ops_testutil",
         ":ops_util",
+        ":wrap_pad_op",
         "//tensorflow/cc:cc_ops",
         "//tensorflow/core:core_cpu",
         "//tensorflow/core:core_cpu_internal",
@@ -3362,6 +3364,23 @@ tf_cc_tests(
         "//tensorflow/core:test_main",
         "//tensorflow/core:testlib",
         "//tensorflow/core/util/tensor_bundle",
+    ],
+)
+
+tf_cuda_cc_test(
+    name = "wrap_pad_op_benchmark_test",
+    srcs = ["wrap_pad_op_benchmark_test.cc"],
+    deps = [
+        ":ops_testutil",
+        ":ops_util",
+        ":wrap_pad_op",
+        "//tensorflow/core:core_cpu",
+        "//tensorflow/core:framework",
+        "//tensorflow/core:lib",
+        "//tensorflow/core:protos_all_cc",
+        "//tensorflow/core:test",
+        "//tensorflow/core:test_main",
+        "//tensorflow/core:testlib",
     ],
 )
 

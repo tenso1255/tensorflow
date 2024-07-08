@@ -501,7 +501,7 @@ TEST(ArrayOpsTest, InvertPermutation_ShapeFn) {
 }
 
 TEST(ArrayOpsTest, PadD_ShapeFn) {
-  for (const char* op_name : {"Pad", "MirrorPad"}) {
+  for (const char* op_name : {"Pad", "MirrorPad", "WrapPad"}) {
     ShapeInferenceTestOp op(op_name);
     op.input_tensors.resize(2);
 
