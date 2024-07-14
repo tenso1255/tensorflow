@@ -106,4 +106,40 @@ TEST_F(WrapPadOpTest, TestWrapPadLargeInput) {
   test::ExpectTensorEqual<float>(expected, *GetOutput(0));
 }
 
+class WrapPadGradOpTest : public OpsTestBase {
+  protected:
+    template <typename T>
+    void MakeOp() {
+      TF_EXPECT_OK(NodeDefBuilder("wrap_pad_grad_op", "WrapPadGrad")
+                       .Input(FakeInput(DataTypeToEnum<T>::value))
+                       .Input(FakeInput(DT_INT32))
+                       .Finalize(node_def()));
+      TF_EXPECT_OK(InitOp());
+    }
+};
+
+#define REGISTER_TEST(T)                                                      \
+  TEST_F(WrapPadGradOpTest, TestWrapPadGrad##T) {                             \
+    MakeOp<T>();                                                              \
+    AddInput<T>(TensorShape({1, 4, 7, 1}), [](int i) -> T { return i % 7; }); \
+    AddInputFromArray<int32>(TensorShape({4, 2}), {0, 0, 1, 1, 2, 2, 0, 0});  \
+    TF_ASSERT_OK(RunOpKernel());                                              \
+                                                                              \
+    Tensor expected(allocator(), DataTypeToEnum<T>::value,                    \
+                    TensorShape({1, 2, 3, 1}));                               \
+    test::FillValues<T>(&expected, {14, 18, 10, 14, 18, 10});                 \
+    test::ExpectTensorEqual<T>(expected, *GetOutput(0));                      \
+  }
+
+REGISTER_TEST(float)
+REGISTER_TEST(double)
+REGISTER_TEST(uint8)
+REGISTER_TEST(uint16)
+REGISTER_TEST(int8)
+REGISTER_TEST(int16)
+REGISTER_TEST(int32)
+REGISTER_TEST(int64_t)
+
+#undef REGISTER_TEST
+
 }  // namespace tensorflow

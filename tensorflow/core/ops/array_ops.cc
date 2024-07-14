@@ -1999,6 +1999,39 @@ Status MirrorPadKnown(InferenceContext* c, ShapeHandle input,
   return absl::OkStatus();
 }
 
+Status PadGradShapeFn(InferenceContext* c) {
+  ShapeHandle paddings;
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 2, &paddings));
+  DimensionHandle pad_0 = c->Dim(paddings, 0);
+  if (!c->ValueKnown(pad_0)) {
+    // We don't know the rank of the output since the first
+    // padding dimension is unknown.
+    c->set_output(0, c->UnknownShape());
+    return absl::OkStatus();
+  }
+
+  int64_t input_rank = c->Value(pad_0);
+  ShapeHandle input;
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(0), input_rank, &input));
+  TF_RETURN_IF_ERROR(
+      c->Merge(paddings, c->Matrix(input_rank, 2), &paddings));
+
+  const Tensor* paddings_t = c->input_tensor(1);
+  if (paddings_t == nullptr) {
+    // Values of 'paddings' is not available, but we know the
+    // input rank, so return the rank of the output with unknown
+    // dimensions.
+    c->set_output(0, c->UnknownShapeOfRank(input_rank));
+    return absl::OkStatus();
+  }
+
+  if (paddings_t->dtype() == DT_INT32) {
+    return MirrorPadKnown<int32>(c, input, paddings_t, input_rank);
+  } else {
+    return MirrorPadKnown<int64_t>(c, input, paddings_t, input_rank);
+  }
+} 
+
 }  // namespace
 
 REGISTER_OP("MirrorPadGrad")
@@ -2008,38 +2041,16 @@ REGISTER_OP("MirrorPadGrad")
     .Attr("T: type")
     .Attr("Tpaddings: {int32, int64} = DT_INT32")
     .Attr(GetMirrorPadModeAttrString())
-    .SetShapeFn([](InferenceContext* c) {
-      ShapeHandle paddings;
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 2, &paddings));
-      DimensionHandle pad_0 = c->Dim(paddings, 0);
-      if (!c->ValueKnown(pad_0)) {
-        // We don't know the rank of the output since the first
-        // padding dimension is unknown.
-        c->set_output(0, c->UnknownShape());
-        return absl::OkStatus();
-      }
+    .SetShapeFn(PadGradShapeFn);
 
-      int64_t input_rank = c->Value(pad_0);
-      ShapeHandle input;
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), input_rank, &input));
-      TF_RETURN_IF_ERROR(
-          c->Merge(paddings, c->Matrix(input_rank, 2), &paddings));
-
-      const Tensor* paddings_t = c->input_tensor(1);
-      if (paddings_t == nullptr) {
-        // Values of 'paddings' is not available, but we know the
-        // input rank, so return the rank of the output with unknown
-        // dimensions.
-        c->set_output(0, c->UnknownShapeOfRank(input_rank));
-        return absl::OkStatus();
-      }
-
-      if (paddings_t->dtype() == DT_INT32) {
-        return MirrorPadKnown<int32>(c, input, paddings_t, input_rank);
-      } else {
-        return MirrorPadKnown<int64_t>(c, input, paddings_t, input_rank);
-      }
-    });
+// --------------------------------------------------------------------------
+REGISTER_OP("WrapPadGrad")
+    .Input("input: T")
+    .Input("paddings: Tpaddings")
+    .Output("output: T")
+    .Attr("T: type")
+    .Attr("Tpaddings: {int32, int64} = DT_INT32")
+    .SetShapeFn(PadGradShapeFn);
 
 // --------------------------------------------------------------------------
 REGISTER_OP("Placeholder")

@@ -349,6 +349,74 @@ struct WrapPad {
   }  
 };
 
+template <typename Device, typename T, typename Tpaddings, int Dims>
+struct WrapPadGrad {
+  void operator()(const Device& device,
+                  typename TTypes<T, Dims, int32>::Tensor output,
+                  typename TTypes<T, Dims, int32>::ConstTensor input,
+                  typename TTypes<Tpaddings>::ConstMatrix paddings,
+                  typename TTypes<T, Dims, int32>::Tensor scratch) {
+    // Copy the gradient input into the scratch buffer.
+    scratch.device(device) = input;
+
+    Eigen::array<int32, Dims> lhs_offsets;
+    Eigen::array<int32, Dims> rhs_offsets;
+    Eigen::array<int32, Dims> extents;
+
+    for (int i = 0; i < Dims; ++i) {
+      lhs_offsets[i] = 0;
+      rhs_offsets[i] = 0;
+      extents[i] = scratch.dimension(i);
+    }
+
+    // At this point, the central part (non-padded area) does not include the
+    // gradients back-propagated through padded areas. Those gradient components
+    // need be added to the central part.
+    //
+    // Note that a gradient input element falls into a padded area iff in at
+    // least one dimension i, the coordinate x(i) is in the range (python-style)
+    // [:paddings(i,0)] or [-paddings(i,1):].
+
+    for (int i = 0; i < Dims; ++i) {
+      // This handles the case when coordinate in dimension i is in the range
+      // [:paddings(i,0)]. This portion is added to the range
+      // [-paddings(i,0) - paddings(i,1) + 1:-paddings(i,1) + 1].
+      if (paddings(i, 0) > 0) {
+        rhs_offsets[i] = 0;
+        lhs_offsets[i] = scratch.dimension(i) - paddings(i, 0) - paddings(i, 1);
+        extents[i] = paddings(i, 0);
+
+        scratch.slice(lhs_offsets, extents).device(device) +=
+            scratch.slice(rhs_offsets, extents);
+      }
+
+      // This handles the case when coordinate in dimension i is in the range
+      // [-paddings(i,1):]. This portion is added to the range
+      // [paddings(i,0):paddings(i,0) + paddings(i,1)].
+      if (paddings(i, 1) > 0) {
+        rhs_offsets[i] = scratch.dimension(i) - paddings(i, 1);
+        lhs_offsets[i] = paddings(i, 0);
+        extents[i] = paddings(i, 1);
+
+        scratch.slice(lhs_offsets, extents).device(device) +=
+            scratch.slice(rhs_offsets, extents); 
+      }
+
+      lhs_offsets[i] = paddings(i, 0);
+      rhs_offsets[i] = paddings(i, 0);
+      extents[i] = output.dimension(i);
+
+      // At this point, scratch buffer contains gradient input as if paddings
+      // for dimension k = 0,...,i are zeros. Therefore after the loop
+      // termination, the central part of the scratch buffer contains the wrapped
+      // gradients.
+    }
+
+    // Copy the central part of the scratch buffer to the output.
+    output.device(device) = scratch.slice(rhs_offsets, extents);
+  }
+};
+
 }  // namespace functor
 }  // namespace tensorflow
 

@@ -34,6 +34,13 @@ TF_CALL_QUANTIZED_TYPES(DEFINE_CPU_SPECS);
 TF_CALL_tstring(DEFINE_CPU_SPECS);
 #undef DEFINE_CPU_SPECS
 
+#define DEFINE_CPU_SPECS(T)                                   \
+  template struct functor::WrapPadGrad<CpuDevice, T, int32,   \
+                                       CPU_PROVIDED_IXDIM>;   \
+  template struct functor::WrapPadGrad<CpuDevice, T, int64_t, \
+                                       CPU_PROVIDED_IXDIM>;
+TF_CALL_NUMBER_TYPES(DEFINE_CPU_SPECS);
+#undef DEFINE_CPU_SPECS
 }  // namespace tensorflow
 
 #endif  // CPU_PROVIDED_IXDIM
