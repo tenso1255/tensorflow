@@ -1516,6 +1516,23 @@ cc_test(
 )
 
 cc_test(
+    name = "gelu_test",
+    srcs = ["gelu_test.cc"],
+    linkopts = select({
+        "//tensorflow:emscripten": EMSCRIPTEN_LINKOPTS,
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":test_main",
+        ":unary_elementwise_tester",
+        ":xnnpack_delegate_test_mode",
+        "//tensorflow/lite/c:c_api_types",
+        "//tensorflow/lite/schema:schema_fbs",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
     name = "hard_swish_test",
     srcs = ["hard_swish_test.cc"],
     linkopts = select({
