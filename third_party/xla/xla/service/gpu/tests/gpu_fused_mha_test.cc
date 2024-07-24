@@ -174,6 +174,33 @@ class MultiHeadedAttentionTest : public GpuCodegenTest {
     }
   }
 
+  void VerifyBackwardDeterminism(absl::string_view hlo_string,
+                                 const std::vector<Literal *> &literals,
+                                 bool force_deterministic = false) {
+    TF_ASSERT_OK_AND_ASSIGN(std::unique_ptr<HloModule> reference_module,
+                            ParseAndReturnVerifiedModule(hlo_string));
+    DebugOptions debug_options = GetDebugOptionsForTest();
+    debug_options.set_xla_gpu_enable_cudnn_fmha(true);
+    if (force_deterministic) {
+      debug_options.set_xla_gpu_deterministic_ops(true);
+    }
+    reference_module->mutable_config().set_debug_options(debug_options);
+    const Literal first_run_result =
+        ExecuteAndTransfer(reference_module->Clone(), literals);
+
+    const Literal second_run_result =
+        ExecuteAndTransfer(std::move(reference_module), literals);
+
+    ErrorSpec error_spec{1E-8, 1e-8};
+    if (force_deterministic) {
+      EXPECT_TRUE(LiteralTestUtil::Near(first_run_result, second_run_result,
+                                        error_spec));
+    } else {
+      EXPECT_FALSE(LiteralTestUtil::Near(first_run_result, second_run_result,
+                                         error_spec));
+    }
+  }
+
   template <typename T>
   Literal GetInput4DLiteral(std::vector<int64_t> dimensions,
                             std::vector<int64_t> minor_to_major) {
