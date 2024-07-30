@@ -32,15 +32,15 @@ limitations under the License.
 namespace tensorflow {
 
 class WrapPadOpTest : public OpsTestBase {
-  protected:
-    template <typename T>
-    void MakeOp() {
-      TF_EXPECT_OK(NodeDefBuilder("wrap_pad_op", "WrapPad")
-                       .Input(FakeInput(DataTypeToEnum<T>::value))
-                       .Input(FakeInput(DT_INT32))
-                       .Finalize(node_def()));
-      TF_EXPECT_OK(InitOp());
-    }
+ protected:
+  template <typename T>
+  void MakeOp() {
+    TF_EXPECT_OK(NodeDefBuilder("wrap_pad_op", "WrapPad")
+                     .Input(FakeInput(DataTypeToEnum<T>::value))
+                     .Input(FakeInput(DT_INT32))
+                     .Finalize(node_def()));
+    TF_EXPECT_OK(InitOp());
+  }
 };
 
 #define REGISTER_TEST(T)                                                     \
@@ -107,15 +107,15 @@ TEST_F(WrapPadOpTest, TestWrapPadLargeInput) {
 }
 
 class WrapPadGradOpTest : public OpsTestBase {
-  protected:
-    template <typename T>
-    void MakeOp() {
-      TF_EXPECT_OK(NodeDefBuilder("wrap_pad_grad_op", "WrapPadGrad")
-                       .Input(FakeInput(DataTypeToEnum<T>::value))
-                       .Input(FakeInput(DT_INT32))
-                       .Finalize(node_def()));
-      TF_EXPECT_OK(InitOp());
-    }
+ protected:
+  template <typename T>
+  void MakeOp() {
+    TF_EXPECT_OK(NodeDefBuilder("wrap_pad_grad_op", "WrapPadGrad")
+                     .Input(FakeInput(DataTypeToEnum<T>::value))
+                     .Input(FakeInput(DT_INT32))
+                     .Finalize(node_def()));
+    TF_EXPECT_OK(InitOp());
+  }
 };
 
 #define REGISTER_TEST(T)                                                      \

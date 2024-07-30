@@ -16,9 +16,9 @@ limitations under the License.
 #ifndef TENSORFLOW_CORE_KERNELS_WRAP_PAD_OP_H_
 #define TENSORFLOW_CORE_KERNELS_WRAP_PAD_OP_H_
 
-#include "unsupported/Eigen/CXX11/Tensor"  // from @eigen_archive
 #include "tensorflow/core/framework/tensor_types.h"
 #include "tensorflow/core/platform/types.h"
+#include "unsupported/Eigen/CXX11/Tensor"  // from @eigen_archive
 
 namespace Eigen {
 template <typename PaddingDimensions, typename XprType>
@@ -55,31 +55,31 @@ template <typename PaddingDimensions, typename XprType>
 class TensorWrapPadOp
     : public TensorBase<TensorWrapPadOp<PaddingDimensions, XprType>,
                         ReadOnlyAccessors> {
-  public:
-    typedef typename Eigen::internal::traits<TensorWrapPadOp>::Scalar Scalar;
-    typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-    typedef typename XprType::CoeffReturnType CoeffReturnType;
-    typedef typename Eigen::internal::nested<TensorWrapPadOp>::type Nested;
-    typedef typename Eigen::internal::traits<TensorWrapPadOp>::StorageKind
-        StorageKind;
-    typedef typename Eigen::internal::traits<TensorWrapPadOp>::Index Index;
+ public:
+  typedef typename Eigen::internal::traits<TensorWrapPadOp>::Scalar Scalar;
+  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
+  typedef typename XprType::CoeffReturnType CoeffReturnType;
+  typedef typename Eigen::internal::nested<TensorWrapPadOp>::type Nested;
+  typedef typename Eigen::internal::traits<TensorWrapPadOp>::StorageKind
+      StorageKind;
+  typedef typename Eigen::internal::traits<TensorWrapPadOp>::Index Index;
 
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorWrapPadOp(
-        const XprType& expr, const PaddingDimensions& padding_dims)
-        : xpr_(expr), padding_dims_(padding_dims) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+  TensorWrapPadOp(const XprType& expr, const PaddingDimensions& padding_dims)
+      : xpr_(expr), padding_dims_(padding_dims) {}
 
-    EIGEN_DEVICE_FUNC
-    const PaddingDimensions& padding() const { return padding_dims_; }
+  EIGEN_DEVICE_FUNC
+  const PaddingDimensions& padding() const { return padding_dims_; }
 
-    EIGEN_DEVICE_FUNC
-    const typename internal::remove_all<typename XprType::Nested>::type&
-    expression() const {
-      return xpr_;
-    }
+  EIGEN_DEVICE_FUNC
+  const typename internal::remove_all<typename XprType::Nested>::type&
+  expression() const {
+    return xpr_;
+  }
 
-  protected:
-    typename XprType::Nested xpr_;
-    const PaddingDimensions padding_dims_;
+ protected:
+  typename XprType::Nested xpr_;
+  const PaddingDimensions padding_dims_;
 };
 
 template <typename PaddingDimensions, typename ArgType, typename Device>
@@ -240,84 +240,84 @@ struct TensorEvaluator<const TensorWrapPadOp<PaddingDimensions, ArgType>,
 
   EIGEN_DEVICE_FUNC Scalar* data() const { return nullptr; }
 
-  protected:
-    using Coords = array<Index, Dims>;
+ protected:
+  using Coords = array<Index, Dims>;
 
-    // Full template specialization is not allowed within non-fully specialized
-    // template class. Adding a dummy parameter to make specializations partial.
-    template <bool CoordAccess, bool dummy = true>
-    struct ReadInputHelper;
+  // Full template specialization is not allowed within non-fully specialized
+  // template class. Adding a dummy parameter to make specializations partial.
+  template <bool CoordAccess, bool dummy = true>
+  struct ReadInputHelper;
 
-    template <bool dummy>
-    struct ReadInputHelper<false, dummy> {
-      template <typename Eval>
-      EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Index
-      operator()(const Coords& coord, const Coords& strides, const Eval& eval) {
-        Index index = 0;
-        for (int k = 0; k < Dims; ++k) {
-          index += coord[k] * strides[k];
-        }
-        return eval.coeff(index);
+  template <bool dummy>
+  struct ReadInputHelper<false, dummy> {
+    template <typename Eval>
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Index
+    operator()(const Coords& coord, const Coords& strides, const Eval& eval) {
+      Index index = 0;
+      for (int k = 0; k < Dims; ++k) {
+        index += coord[k] * strides[k];
       }
-    };
+      return eval.coeff(index);
+    }
+  };
 
-    template <bool dummy>
-    struct ReadInputHelper<true, dummy> {
-      template <typename Eval>
-      EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Index
-      operator()(const Coords& coord, const Coords& strides, const Eval& eval) {
-        return eval.coeff(coord);
-      }
-    };
+  template <bool dummy>
+  struct ReadInputHelper<true, dummy> {
+    template <typename Eval>
+    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Index
+    operator()(const Coords& coord, const Coords& strides, const Eval& eval) {
+      return eval.coeff(coord);
+    }
+  };
 
-    EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Index ToInputCoord(Index k,
-                                                             int dim) const {
-      const Index m = impl_.dimensions()[dim];
-      k -= padding_[dim].first;
-      if (k < 0) {
-        return m + k;
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Index ToInputCoord(Index k,
+                                                           int dim) const {
+    const Index m = impl_.dimensions()[dim];
+    k -= padding_[dim].first;
+    if (k < 0) {
+      return m + k;
+    }
+    if (k < m) {
+      return k;
+    }
+    return k - m;
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index
+  ToInputIndex(const Coords& coords) const {
+    Index input_index = 0;
+    for (int dim = 0; dim < Dims; ++dim) {
+      input_index += ToInputCoord(coords[dim], dim) * input_strides_[dim];
+    }
+    return input_index;
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index ToInputIndex(Index index) const {
+    Index input_index = 0;
+    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+      for (int dim = Dims - 1; dim > 0; --dim) {
+        const Index k = index / output_strides_[dim];
+        index -= k * output_strides_[dim];
+        input_index += ToInputCoord(k, dim) * input_strides_[dim];
       }
-      if (k < m) {
-        return k;
+      input_index += ToInputCoord(index, 0);
+    } else {
+      for (int dim = 0; dim < Dims - 1; ++dim) {
+        const Index k = index / output_strides_[dim];
+        index -= k * output_strides_[dim];
+        input_index += ToInputCoord(k, dim) * input_strides_[dim];
       }
-      return k - m; 
+      input_index += ToInputCoord(index, Dims - 1);
     }
 
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index
-    ToInputIndex(const Coords& coords) const {
-      Index input_index = 0;
-      for (int dim = 0; dim < Dims; ++dim) {
-        input_index += ToInputCoord(coords[dim], dim) * input_strides_[dim];
-      }
-      return input_index;
-    }
+    return input_index;
+  }
 
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index ToInputIndex(Index index) const {
-      Index input_index = 0;
-      if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
-        for (int dim = Dims - 1; dim > 0; --dim) {
-          const Index k = index / output_strides_[dim];
-          index -= k * output_strides_[dim];
-          input_index += ToInputCoord(k, dim) * input_strides_[dim];
-        }
-        input_index += ToInputCoord(index, 0);
-      } else {
-        for (int dim = 0; dim < Dims - 1; ++dim) {
-          const Index k = index / output_strides_[dim];
-          index -= k * output_strides_[dim];
-          input_index += ToInputCoord(k, dim) * input_strides_[dim];
-        }
-        input_index += ToInputCoord(index, Dims - 1);
-      }
-
-      return input_index;
-    }
-
-    TensorEvaluator<ArgType, Device> impl_;
-    PaddingDimensions padding_;
-    Dimensions dimensions_;
-    array<Index, Dims> input_strides_;
-    array<Index, Dims> output_strides_;
+  TensorEvaluator<ArgType, Device> impl_;
+  PaddingDimensions padding_;
+  Dimensions dimensions_;
+  array<Index, Dims> input_strides_;
+  array<Index, Dims> output_strides_;
 };
 }  // namespace Eigen
 
@@ -337,16 +337,15 @@ struct WrapPad {
     }
 
     output.device(device) = WrapPadOp(input, padding_dims);
-  }  
+  }
 
   template <typename PaddingDimensions, typename Derived>
   static const Eigen::TensorWrapPadOp<PaddingDimensions, const Derived>
-  WrapPadOp(
-      const Eigen::TensorBase<Derived, Eigen::ReadOnlyAccessors>& tensor,
-      const PaddingDimensions& padding) {
+  WrapPadOp(const Eigen::TensorBase<Derived, Eigen::ReadOnlyAccessors>& tensor,
+            const PaddingDimensions& padding) {
     return Eigen::TensorWrapPadOp<PaddingDimensions, const Derived>(
         static_cast<const Derived&>(tensor), padding);
-  }  
+  }
 };
 
 template <typename Device, typename T, typename Tpaddings, int Dims>
@@ -399,7 +398,7 @@ struct WrapPadGrad {
         extents[i] = paddings(i, 1);
 
         scratch.slice(lhs_offsets, extents).device(device) +=
-            scratch.slice(rhs_offsets, extents); 
+            scratch.slice(rhs_offsets, extents);
       }
 
       lhs_offsets[i] = paddings(i, 0);
@@ -408,8 +407,8 @@ struct WrapPadGrad {
 
       // At this point, scratch buffer contains gradient input as if paddings
       // for dimension k = 0,...,i are zeros. Therefore after the loop
-      // termination, the central part of the scratch buffer contains the wrapped
-      // gradients.
+      // termination, the central part of the scratch buffer contains the
+      // wrapped gradients.
     }
 
     // Copy the central part of the scratch buffer to the output.

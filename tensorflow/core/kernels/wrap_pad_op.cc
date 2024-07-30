@@ -19,7 +19,6 @@ limitations under the License.
 
 #include <string>
 
-#include "unsupported/Eigen/CXX11/Tensor"  // from @eigen_archive
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/register_types.h"
@@ -29,87 +28,87 @@ limitations under the License.
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/types.h"
+#include "unsupported/Eigen/CXX11/Tensor"  // from @eigen_archive
 
 namespace tensorflow {
 
 template <typename Device, typename T, typename Tpaddings>
 class WrapPadOp : public OpKernel {
-  public:
-    explicit WrapPadOp(OpKernelConstruction* context) : OpKernel(context) {}
+ public:
+  explicit WrapPadOp(OpKernelConstruction* context) : OpKernel(context) {}
 
-    ~WrapPadOp() override = default;
+  ~WrapPadOp() override = default;
 
-    void Compute(OpKernelContext* context) override {
-      const Tensor& in0 = context->input(0);
-      const Tensor& in1 = context->input(1);
-      const int dims = in0.dims();
-      constexpr int kMinDims = 0;
-      constexpr int kMaxDims = 5;
-      OP_REQUIRES(context, kMinDims <= dims && dims <= kMaxDims,
-                  errors::Unimplemented("inputs rank not in [", kMinDims, ",",
-                                        kMaxDims, "]: ", dims));
-      OP_REQUIRES(
-          context,
-          TensorShapeUtils::IsMatrix(in1.shape()) && in1.dim_size(1) == 2,
-          errors::InvalidArgument("paddings must be a matrix with 2 columns: ",
-                                  in1.shape().DebugString()));
-      OP_REQUIRES(
-          context, dims == in1.dim_size(0),
-          errors::InvalidArgument(
-              "The first dimension of paddings must be the rank of inputs",
-              in1.shape().DebugString(), ", ", in0.shape().DebugString()));
+  void Compute(OpKernelContext* context) override {
+    const Tensor& in0 = context->input(0);
+    const Tensor& in1 = context->input(1);
+    const int dims = in0.dims();
+    constexpr int kMinDims = 0;
+    constexpr int kMaxDims = 5;
+    OP_REQUIRES(context, kMinDims <= dims && dims <= kMaxDims,
+                errors::Unimplemented("inputs rank not in [", kMinDims, ",",
+                                      kMaxDims, "]: ", dims));
+    OP_REQUIRES(
+        context,
+        TensorShapeUtils::IsMatrix(in1.shape()) && in1.dim_size(1) == 2,
+        errors::InvalidArgument("paddings must be a matrix with 2 columns: ",
+                                in1.shape().DebugString()));
+    OP_REQUIRES(
+        context, dims == in1.dim_size(0),
+        errors::InvalidArgument(
+            "The first dimension of paddings must be the rank of inputs",
+            in1.shape().DebugString(), ", ", in0.shape().DebugString()));
 
-      // Compute the shape of the output tensor, and allocate it.
-      TensorShape output_shape;
-      typename TTypes<Tpaddings>::ConstMatrix paddings = in1.matrix<Tpaddings>();
-      for (int d = 0; d < dims; ++d) {
-        const Tpaddings before = paddings(d, 0);  // Pad before existing elements.
-        const Tpaddings after = paddings(d, 1);   // Pad after existing elements.
-        OP_REQUIRES(context, before >= 0 && after >= 0,
-                    errors::InvalidArgument(
-                        "paddings must be non-negative: ", before, " ", after));
-        OP_REQUIRES(
-            context, before < in0.dim_size(d) && after < in0.dim_size(d),
-            errors::InvalidArgument("paddings must be less than"
-                                    " the dimension size: ",
-                                    before, ", ", after, " not less than ",
-                                    in0.dim_size(d)));
-        output_shape.AddDim(before + in0.dim_size(d) + after);
-      }
+    // Compute the shape of the output tensor, and allocate it.
+    TensorShape output_shape;
+    typename TTypes<Tpaddings>::ConstMatrix paddings = in1.matrix<Tpaddings>();
+    for (int d = 0; d < dims; ++d) {
+      const Tpaddings before = paddings(d, 0);  // Pad before existing elements.
+      const Tpaddings after = paddings(d, 1);   // Pad after existing elements.
+      OP_REQUIRES(context, before >= 0 && after >= 0,
+                  errors::InvalidArgument(
+                      "paddings must be non-negative: ", before, " ", after));
+      OP_REQUIRES(context, before < in0.dim_size(d) && after < in0.dim_size(d),
+                  errors::InvalidArgument("paddings must be less than"
+                                          " the dimension size: ",
+                                          before, ", ", after,
+                                          " not less than ", in0.dim_size(d)));
+      output_shape.AddDim(before + in0.dim_size(d) + after);
+    }
 
-      if (output_shape.num_elements() == in0.NumElements()) {
-        // When num_elements == 0, shape may have changed.
-        Tensor out;
-        CHECK(out.CopyFrom(in0, output_shape));
-        context->set_output(0, out);
-        return;
-      }
+    if (output_shape.num_elements() == in0.NumElements()) {
+      // When num_elements == 0, shape may have changed.
+      Tensor out;
+      CHECK(out.CopyFrom(in0, output_shape));
+      context->set_output(0, out);
+      return;
+    }
 
-      Tensor* output = nullptr;
-      OP_REQUIRES_OK(context, context->allocate_output(0, output_shape, &output));
+    Tensor* output = nullptr;
+    OP_REQUIRES_OK(context, context->allocate_output(0, output_shape, &output));
 
-#define WRAP_PAD_CASE(i)                                                    \
-  case i: {                                                                 \
-    functor::WrapPad<Device, T, Tpaddings, i>()(                            \
-        context->eigen_device<Device>(), To32Bit(output->tensor<T, i>()),   \
-        To32Bit(in0.tensor<T, i>()), paddings);                             \
-    break;                                                                  \
+#define WRAP_PAD_CASE(i)                                                  \
+  case i: {                                                               \
+    functor::WrapPad<Device, T, Tpaddings, i>()(                          \
+        context->eigen_device<Device>(), To32Bit(output->tensor<T, i>()), \
+        To32Bit(in0.tensor<T, i>()), paddings);                           \
+    break;                                                                \
   }
 
-      // Invoke the dims-specific implementation.
-      switch (dims) {
-        WRAP_PAD_CASE(1)
-        WRAP_PAD_CASE(2)
-        WRAP_PAD_CASE(3)
-        WRAP_PAD_CASE(4)
-        WRAP_PAD_CASE(5)
-        default:
-          OP_REQUIRES(context, false,
-                      errors::InvalidArgument("Unsupported rank: ",
-                                              in0.shape().DebugString()));
-      }
-#undef WRAP_PAD_CASE
+    // Invoke the dims-specific implementation.
+    switch (dims) {
+      WRAP_PAD_CASE(1)
+      WRAP_PAD_CASE(2)
+      WRAP_PAD_CASE(3)
+      WRAP_PAD_CASE(4)
+      WRAP_PAD_CASE(5)
+      default:
+        OP_REQUIRES(context, false,
+                    errors::InvalidArgument("Unsupported rank: ",
+                                            in0.shape().DebugString()));
     }
+#undef WRAP_PAD_CASE
+  }
 };
 
 using CpuDevice = Eigen::ThreadPoolDevice;
@@ -119,7 +118,7 @@ namespace functor {
 // Forward declarations of the functor specializations defined in the sharded
 // files.
 #define DECLARE_CPU_SPEC(T, Tpaddings, i)                     \
-  template<>                                                  \
+  template <>                                                 \
   void WrapPad<CpuDevice, T, Tpaddings, i>::operator()(       \
       const CpuDevice&, typename TTypes<T, i, int32>::Tensor, \
       typename TTypes<T, i, int32>::ConstTensor,              \
@@ -146,18 +145,18 @@ TF_CALL_tstring(DECLARE_CPU_SPECS);
 #undef DECLARE_CPU_SPECS
 }  // namespace functor
 
-#define REGISTER_KERNEL(type)                                              \
-  REGISTER_KERNEL_BUILDER(Name("WrapPad")                                  \
-                              .Device(DEVICE_CPU)                          \
-                              .TypeConstraint<type>("T")                   \
-                              .TypeConstraint<int32>("Tpaddings")          \
-                              .HostMemory("paddings"),                     \
-                          WrapPadOp<CpuDevice, type, int32>);              \
-  REGISTER_KERNEL_BUILDER(Name("WrapPad")                                  \
-                              .Device(DEVICE_CPU)                          \
-                              .TypeConstraint<type>("T")                   \
-                              .TypeConstraint<int64_t>("Tpaddings")        \
-                              .HostMemory("paddings"),                     \
+#define REGISTER_KERNEL(type)                                       \
+  REGISTER_KERNEL_BUILDER(Name("WrapPad")                           \
+                              .Device(DEVICE_CPU)                   \
+                              .TypeConstraint<type>("T")            \
+                              .TypeConstraint<int32>("Tpaddings")   \
+                              .HostMemory("paddings"),              \
+                          WrapPadOp<CpuDevice, type, int32>);       \
+  REGISTER_KERNEL_BUILDER(Name("WrapPad")                           \
+                              .Device(DEVICE_CPU)                   \
+                              .TypeConstraint<type>("T")            \
+                              .TypeConstraint<int64_t>("Tpaddings") \
+                              .HostMemory("paddings"),              \
                           WrapPadOp<CpuDevice, type, int64>);
 
 // Note that we do register for bool type.
@@ -205,7 +204,7 @@ TF_CALL_GPU_NUMBER_TYPES(DECLARE_GPU_SPECS);
   REGISTER_KERNEL_BUILDER(Name("WrapPad")                           \
                               .Device(DEVICE_GPU)                   \
                               .TypeConstraint<T>("T")               \
-                              .TypeConstraint<int64_t>("Tpaddings")  \
+                              .TypeConstraint<int64_t>("Tpaddings") \
                               .HostMemory("paddings"),              \
                           WrapPadOp<GpuDevice, T, int64>);
 
@@ -216,69 +215,69 @@ TF_CALL_GPU_NUMBER_TYPES(REGISTER_GPU_KERNEL);
 // Gradient op.
 template <typename Device, typename T, typename Tpaddings>
 class WrapPadGradOp : public OpKernel {
-  public:
-    explicit WrapPadGradOp(OpKernelConstruction* context) : OpKernel(context) {}
+ public:
+  explicit WrapPadGradOp(OpKernelConstruction* context) : OpKernel(context) {}
 
-    ~WrapPadGradOp() override = default;
+  ~WrapPadGradOp() override = default;
 
-    void Compute(OpKernelContext* context) override {
-      const Tensor& in0 = context->input(0);
-      const Tensor& in1 = context->input(1);
-      const int dims = in0.dims();
-      constexpr int kMinDims = 0;
-      constexpr int kMaxDims = 5;
-      OP_REQUIRES(context, kMinDims <= dims && dims <= kMaxDims,
-                  errors::Unimplemented("inputs rank not in [", kMinDims, ",",
-                                        kMaxDims, "]: ", dims));
+  void Compute(OpKernelContext* context) override {
+    const Tensor& in0 = context->input(0);
+    const Tensor& in1 = context->input(1);
+    const int dims = in0.dims();
+    constexpr int kMinDims = 0;
+    constexpr int kMaxDims = 5;
+    OP_REQUIRES(context, kMinDims <= dims && dims <= kMaxDims,
+                errors::Unimplemented("inputs rank not in [", kMinDims, ",",
+                                      kMaxDims, "]: ", dims));
+    OP_REQUIRES(
+        context,
+        TensorShapeUtils::IsMatrix(in1.shape()) && in1.dim_size(1) == 2,
+        errors::InvalidArgument("paddings must be a matrix with 2 columns: ",
+                                in1.shape().DebugString()));
+    OP_REQUIRES(
+        context, dims == in1.dim_size(0),
+        errors::InvalidArgument(
+            "The first dimension of paddings must be the rank of inputs",
+            in1.shape().DebugString(), " ", in0.shape().DebugString()));
+
+    // Compute the shape of the output tensor, and allocate it.
+    TensorShape output_shape;
+    typename TTypes<Tpaddings>::ConstMatrix paddings = in1.matrix<Tpaddings>();
+    for (int d = 0; d < dims; ++d) {
+      const int64_t before = paddings(d, 0);  // Pad before existing elements.
+      const int64_t after = paddings(d, 1);   // Pad after existing elements.
+      OP_REQUIRES(context, before >= 0 && after >= 0,
+                  errors::InvalidArgument(
+                      "Paddings must be non-negative: ", before, ", ", after));
+
+      const int64_t in_size = in0.dim_size(d);
+      const int64_t total_padding = before + after;
       OP_REQUIRES(
-          context,
-          TensorShapeUtils::IsMatrix(in1.shape()) && in1.dim_size(1) == 2,
-          errors::InvalidArgument("paddings must be a matrix with 2 columns: ",
-                                  in1.shape().DebugString()));
-      OP_REQUIRES(
-          context, dims == in1.dim_size(0),
+          context, total_padding < in_size && total_padding >= 0,
           errors::InvalidArgument(
-              "The first dimension of paddings must be the rank of inputs",
-              in1.shape().DebugString(), " ", in0.shape().DebugString()));
+              "Total paddings must be less than the input dimension size: ",
+              total_padding, " was not less than ", in_size));
 
-      // Compute the shape of the output tensor, and allocate it.
-      TensorShape output_shape;
-      typename TTypes<Tpaddings>::ConstMatrix paddings = in1.matrix<Tpaddings>();
-      for (int d = 0; d < dims; ++d) {
-        const int64_t before = paddings(d, 0);  // Pad before existing elements.
-        const int64_t after = paddings(d, 1);   // Pad after existing elements.
-        OP_REQUIRES(context, before >= 0 && after >= 0,
-                    errors::InvalidArgument(
-                        "Paddings must be non-negative: ", before, ", ", after));
+      const int64_t out_size = in_size - total_padding;
+      OP_REQUIRES(context, before < out_size && after < out_size,
+                  errors::InvalidArgument("paddings must be less than"
+                                          " the output dimension size: ",
+                                          before, ", ", after,
+                                          " not less than ", out_size));
+      OP_REQUIRES_OK(context, output_shape.AddDimWithStatus(out_size));
+    }
 
-        const int64_t in_size = in0.dim_size(d);
-        const int64_t total_padding = before + after;
-        OP_REQUIRES(
-            context, total_padding < in_size && total_padding >= 0,
-            errors::InvalidArgument(
-                "Total paddings must be less than the input dimension size: ",
-                total_padding, " was not less than ", in_size));
+    if (output_shape == in0.shape()) {
+      context->set_output(0, in0);
+      return;
+    }
 
-        const int64_t out_size = in_size - total_padding;
-        OP_REQUIRES(context, before < out_size && after < out_size,
-                    errors::InvalidArgument("paddings must be less than"
-                                            " the output dimension size: ",
-                                            before, ", ", after,
-                                            " not less than ", out_size));
-        OP_REQUIRES_OK(context, output_shape.AddDimWithStatus(out_size));
-      }
- 
-      if (output_shape == in0.shape()) {
-        context->set_output(0, in0);
-        return;
-      }
+    Tensor scratch;
+    OP_REQUIRES_OK(context, context->allocate_temp(DataTypeToEnum<T>::value,
+                                                   in0.shape(), &scratch));
 
-      Tensor scratch;
-      OP_REQUIRES_OK(context, context->allocate_temp(DataTypeToEnum<T>::value,
-                                                     in0.shape(), &scratch));
-
-      Tensor* output = nullptr;
-      OP_REQUIRES_OK(context, context->allocate_output(0, output_shape, &output));
+    Tensor* output = nullptr;
+    OP_REQUIRES_OK(context, context->allocate_output(0, output_shape, &output));
 
 #define WRAP_PAD_GRAD_CASE(k)                                             \
   case k: {                                                               \
@@ -289,32 +288,31 @@ class WrapPadGradOp : public OpKernel {
     break;                                                                \
   }
 
-      // Invoke the dims-specific implementation.
-      switch (dims) {
-        WRAP_PAD_GRAD_CASE(1);
-        WRAP_PAD_GRAD_CASE(2);
-        WRAP_PAD_GRAD_CASE(3);
-        WRAP_PAD_GRAD_CASE(4);
-        WRAP_PAD_GRAD_CASE(5);
-        default:
-          OP_REQUIRES(context, false,
-                      errors::InvalidArgument("Unsupported rank: ",
+    // Invoke the dims-specific implementation.
+    switch (dims) {
+      WRAP_PAD_GRAD_CASE(1);
+      WRAP_PAD_GRAD_CASE(2);
+      WRAP_PAD_GRAD_CASE(3);
+      WRAP_PAD_GRAD_CASE(4);
+      WRAP_PAD_GRAD_CASE(5);
+      default:
+        OP_REQUIRES(context, false,
+                    errors::InvalidArgument("Unsupported rank: ",
                                             in0.shape().DebugString()));
-      }
-#undef WRAP_PAD_GRAD_CASE
     }
+#undef WRAP_PAD_GRAD_CASE
+  }
 };
 
 namespace functor {
 // Forward declarations of the functor specializations defined in the sharded
 // files.
-#define DECLARE_CPU_SPEC(T, Tpaddings, k)                     \
-  template <>                                                 \
-  void WrapPadGrad<CpuDevice, T, Tpaddings, k>::operator()(   \
-      const CpuDevice&, typename TTypes<T, k, int32>::Tensor, \
-      typename TTypes<T, k, int32>::ConstTensor,              \
-      TTypes<Tpaddings>::ConstMatrix,                         \
-      typename TTypes<T, k, int32>::Tensor);                  \
+#define DECLARE_CPU_SPEC(T, Tpaddings, k)                                    \
+  template <>                                                                \
+  void WrapPadGrad<CpuDevice, T, Tpaddings, k>::operator()(                  \
+      const CpuDevice&, typename TTypes<T, k, int32>::Tensor,                \
+      typename TTypes<T, k, int32>::ConstTensor,                             \
+      TTypes<Tpaddings>::ConstMatrix, typename TTypes<T, k, int32>::Tensor); \
   extern template struct WrapPadGrad<CpuDevice, T, Tpaddings, k>;
 
 #define DECLARE_CPU_SPECS(T)       \
@@ -354,13 +352,12 @@ TF_CALL_NUMBER_TYPES(REGISTER_KERNEL);
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 namespace functor {
 // Forward declarations of the functor specializations for GPU.
-#define DECLARE_GPU_SPEC(T, Tpaddings, k)                     \
-  template <>                                                 \
-  void WrapPadGrad<GpuDevice, T, Tpaddings, k>::operator()(   \
-      const GpuDevice&, typename TTypes<T, k, int32>::Tensor, \
-      typename TTypes<T, k, int32>::ConstTensor,              \
-      TTypes<Tpaddings>::ConstMatrix,                         \
-      typename TTypes<T, k, int32>::Tensor);                  \
+#define DECLARE_GPU_SPEC(T, Tpaddings, k)                                    \
+  template <>                                                                \
+  void WrapPadGrad<GpuDevice, T, Tpaddings, k>::operator()(                  \
+      const GpuDevice&, typename TTypes<T, k, int32>::Tensor,                \
+      typename TTypes<T, k, int32>::ConstTensor,                             \
+      TTypes<Tpaddings>::ConstMatrix, typename TTypes<T, k, int32>::Tensor); \
   extern template struct WrapPadGrad<GpuDevice, T, Tpaddings, k>;
 
 #define DECLARE_GPU_SPECS(T)       \

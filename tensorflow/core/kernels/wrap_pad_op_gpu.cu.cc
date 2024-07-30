@@ -47,7 +47,7 @@ using GpuDevice = Eigen::GpuDevice;
   template struct functor::WrapPadGrad<GpuDevice, T, int64, 5>;
 
 TF_CALL_GPU_NUMBER_TYPES(DEFINE_GPU_SPECS);
-#undef DEFINE_GPU_SPECS 
+#undef DEFINE_GPU_SPECS
 
 }  // namespace tensorflow
 
