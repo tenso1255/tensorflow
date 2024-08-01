@@ -116,16 +116,16 @@ Value getTosaConstRsqrt8bitTable(PatternRewriter& rewriter, Operation* op,
 
 // Create a 32-bit float constant operator from a float
 Value getTosaConstTensorSingleF32(PatternRewriter& rewriter, Operation* op,
-                                  float val);
+                                  float val, int rank);
 
-// Create a 32-bit integer constant operator from an int
+// Create a 32-bit integer constant operator from an int of specified rank
 Value getTosaConstTensorSingleI32(PatternRewriter& rewriter, Operation* op,
-                                  int32_t val);
+                                  int32_t val, int rank);
 
 // Create an expected bitwidth integer constant operator based on the type
-// parameter.
+// parameter, of specified rank
 Value getTosaConstTensorScalarInt(ImplicitLocOpBuilder& builder, Type type,
-                                  int64_t val);
+                                  int64_t val, int rank);
 
 // Create a vector from a 32-bit value tensor.  Returns vector size on success
 // or -1 on error.
@@ -225,6 +225,64 @@ template <typename TosaOp, typename... Args>
 TosaOp CreateOpAndInfer(PatternRewriter& rewriter, Location loc, Type result_ty,
                         Args&&... args) {
   ImplicitLocOpBuilder builder(loc, rewriter);
+
+  if (TosaOp::template hasTrait<OpTrait::SameOperandsAndResultRank>()) {
+    // op requires same ranks for tensor operands
+    if constexpr (sizeof...(Args) == 2) {
+      auto argX = std::get<0>(std::tie(args...));
+      auto argY = std::get<1>(std::tie(args...));
+      using ArgX = decltype(argX);
+      using ArgY = decltype(argY);
+      if constexpr (std::is_same_v<ArgX, Value> &&
+                    std::is_same_v<ArgY, Value>) {
+        Value x = std::get<0>(std::tie(args...));
+        Value y = std::get<1>(std::tie(args...));
+        if (EqualizeRanks(rewriter, loc, x, y).failed()) {
+          // incompatible broadcast shapes, no reshape is inserted
+          // ResultsBroadcastableShape verify will handle this
+        }
+        return CreateOpAndInfer<TosaOp>(builder, result_ty, x, y);
+      }
+    }
+    if constexpr (sizeof...(Args) == 3) {
+      auto argX = std::get<0>(std::tie(args...));
+      auto argY = std::get<1>(std::tie(args...));
+      auto argZ = std::get<2>(std::tie(args...));
+      using ArgX = decltype(argX);
+      using ArgY = decltype(argY);
+      using ArgZ = decltype(argZ);
+      if constexpr (std::is_same_v<ArgX, Value> &&
+                    std::is_same_v<ArgY, Value> && std::is_same_v<ArgZ, bool>) {
+        // special case for ArithmeticRightShiftOp
+        Value x = std::get<0>(std::tie(args...));
+        Value y = std::get<1>(std::tie(args...));
+        bool round = std::get<2>(std::tie(args...));
+        if (EqualizeRanks(rewriter, loc, x, y).failed()) {
+          // incompatible broadcast shapes, no reshape is inserted
+          // ResultsBroadcastableShape verify will handle this
+        }
+        return CreateOpAndInfer<TosaOp>(builder, result_ty, x, y, round);
+      }
+      if constexpr (std::is_same_v<ArgX, Value> &&
+                    std::is_same_v<ArgY, Value> &&
+                    std::is_same_v<ArgZ, Value>) {
+        // special case for Select
+        Value x = std::get<0>(std::tie(args...));
+        Value y = std::get<1>(std::tie(args...));
+        Value z = std::get<2>(std::tie(args...));
+
+        if (EqualizeRanks(rewriter, loc, x, y).failed() ||
+            EqualizeRanks(rewriter, loc, x, z).failed() ||
+            EqualizeRanks(rewriter, loc, y, z).failed()) {
+          // incompatible broadcast shapes, no reshape is inserted
+          // ResultsBroadcastableShape verify will handle this
+        }
+
+        return CreateOpAndInfer<TosaOp>(builder, result_ty, x, y, z);
+      }
+    }
+  }
+
   return CreateOpAndInfer<TosaOp>(builder, result_ty, args...);
 }
 
@@ -235,6 +293,28 @@ void CreateReplaceOpAndInfer(PatternRewriter& rewriter, Operation* op,
       CreateOpAndInfer<TosaOp>(rewriter, op->getLoc(), result_ty, args...);
   rewriter.replaceOp(op, result->getResults());
 }
+
+template <typename TOSA_OP>
+LogicalResult ConvertBinaryOp(Operation* op, PatternRewriter& rewriter) {
+  TensorType output_type = dyn_cast<TensorType>(op->getResults()[0].getType());
+  if (!output_type) return failure();
+
+  Value x = op->getOperands()[0];
+  Value y = op->getOperands()[1];
+
+  RankedTensorType x_type = dyn_cast<RankedTensorType>(x.getType());
+  RankedTensorType y_type = dyn_cast<RankedTensorType>(y.getType());
+  if (!x_type || !y_type) return failure();
+
+  CreateReplaceOpAndInfer<TOSA_OP>(rewriter, op, output_type, x, y);
+  return success();
+}
+
+// Create TOSA mul ops and infer the shape of the operation. During the
+// creation, fill in the shift value if applied.
+tosa::MulOp CreateMulOpAndInfer(PatternRewriter& rewriter, Operation* op,
+                                Type result_ty, Value input1, Value input2,
+                                int8_t shift = 0);
 
 void TrimQuantizedIntegerRangeMin(mlir::quant::UniformQuantizedType dtype,
                                   int64_t& val_min);
