@@ -884,6 +884,7 @@ filegroup(
         "//tensorflow/cc/saved_model:metrics_impl",  # SavedModel metrics
         "//tensorflow/compiler/jit:flags",  # tfe
         "//tensorflow/compiler/jit:get_compiler_ir",  # tfe
+        "//tensorflow/compiler/mlir/lite/kernels/shim:shape",  # tf_text
         "//tensorflow/compiler/mlir/lite/python:converter_python_api",  # converter
         "//tensorflow/compiler/mlir/quantization/tensorflow/python:quantize_model_cc_impl",  # quantization
         "//tensorflow/compiler/mlir/tensorflow_to_stablehlo/python:pywrap_tensorflow_to_stablehlo_lib_impl",  # tensorflow_to_stablehlo
