@@ -1468,6 +1468,36 @@ TEST(XlaBuilderTest, SparseDot) {
               GmockMatch(m::Op().WithShapeEqualTo(&expected)));
 }
 
+TEST(XlaBuilderTest, RaggedDotNonContractingWithPreferredElementType) {
+  XlaBuilder b(TestName());
+  auto lhs = Parameter(&b, 0, ShapeUtil::MakeShape(S8, {11, 5}), "lhs");
+  auto rhs = Parameter(&b, 1, ShapeUtil::MakeShape(S8, {3, 5, 7}), "rhs");
+  auto group_sizes =
+      Parameter(&b, 2, ShapeUtil::MakeShape(U32, {3}), "group_sizes");
+
+  RaggedDot(lhs, rhs, group_sizes, /*precision_config=*/nullptr,
+            /*preferred_element_type=*/S32);
+  TF_ASSERT_OK_AND_ASSIGN(const auto module, BuildHloModule(b));
+  TF_ASSERT_OK_AND_ASSIGN(const Shape expected, ParseShape("s32[11, 7]"));
+  EXPECT_THAT(GetRoot(*module),
+              GmockMatch(m::Op().WithShapeEqualTo(&expected)));
+}
+
+TEST(XlaBuilderTest, RaggedDotContractingWithPreferredElementType) {
+  XlaBuilder b(TestName());
+  auto lhs = Parameter(&b, 0, ShapeUtil::MakeShape(BF16, {11, 5}), "lhs");
+  auto rhs = Parameter(&b, 1, ShapeUtil::MakeShape(BF16, {5, 7}), "rhs");
+  auto group_sizes =
+      Parameter(&b, 2, ShapeUtil::MakeShape(U32, {3}), "group_sizes");
+
+  RaggedDot(lhs, rhs, group_sizes, /*precision_config=*/nullptr,
+            /*preferred_element_type=*/F32);
+  TF_ASSERT_OK_AND_ASSIGN(const auto module, BuildHloModule(b));
+  TF_ASSERT_OK_AND_ASSIGN(const Shape expected, ParseShape("f32[3, 11, 7]"));
+  EXPECT_THAT(GetRoot(*module),
+              GmockMatch(m::Op().WithShapeEqualTo(&expected)));
+}
+
 TEST(XlaBuilderTest, ConvolutionWithPreferredElementType) {
   XlaBuilder b(TestName());
   const Shape p0_shape = ShapeUtil::MakeShape(S16, {1, 2, 2, 128});

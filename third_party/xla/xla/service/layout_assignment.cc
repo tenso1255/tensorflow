@@ -2917,6 +2917,7 @@ bool LayoutAssignment::InstructionCanChangeLayout(
     case HloOpcode::kOutfeed:
     case HloOpcode::kParameter:
     case HloOpcode::kPartitionId:
+    case HloOpcode::kRaggedDot:
     case HloOpcode::kRecv:
     case HloOpcode::kRecvDone:
     case HloOpcode::kReduce:
