@@ -5556,8 +5556,8 @@ def tensor_scatter_nd_update(tensor, indices, updates, name=None):
     the index vectors each point to scalars in `tensor` and each update is a
     scalar.
   * If the length of the index vectors is less than the rank of `tensor`, then
-    the index vectors each point to the slices of `tensor` and shape of the updates
-    must match that slice.
+    the index vectors each point to the slices of `tensor` and shape of the
+    updates must match that slice.
 
   Overall this leads to the following shape constraints:
 
@@ -6136,8 +6136,8 @@ def searchsorted(sorted_sequence,
 
   Note: This operation assumes that `sorted_sequence` **is sorted** along the
   innermost axis, maybe using `tf.sort(..., axis=-1)`. **If the sequence is not
-  sorted, no error is raised** and the content of the returned tensor is not well
-  defined.
+  sorted, no error is raised** and the content of the returned tensor is not
+  well defined.
 
   Args:
     sorted_sequence: N-D `Tensor` containing a sorted sequence.
@@ -6645,8 +6645,9 @@ def repeat(input, repeats, axis=None, name=None):  # pylint: disable=redefined-b
     repeats: An 1-D `int` Tensor. The number of repetitions for each element.
       repeats is broadcasted to fit the shape of the given axis. `len(repeats)`
       must equal `input.shape[axis]` if axis is not None.
-    axis: An int. The axis along which to repeat values. By default, (axis=None),
-      use the flattened input array, and return a flat output array.
+    axis: An int. The axis along which to repeat values. By default,
+      (axis=None), use the flattened input array, and return a flat output
+      array.
     name: A name for the operation.
 
   Returns:
