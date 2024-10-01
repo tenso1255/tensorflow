@@ -42,7 +42,6 @@ cc_library(
         ":pluggable_device_bfc_allocator",
         ":pluggable_device_init_impl",
         ":pluggable_device_simple_allocator",
-        "//tensorflow/c/experimental/stream_executor",
         "//tensorflow/c/experimental/stream_executor:stream_executor_internal",
         "//tensorflow/core:core_cpu",
         "//tensorflow/core:core_cpu_lib",
@@ -154,7 +153,6 @@ cc_library(
         "//tensorflow/core:lib_internal",
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/common_runtime:bfc_allocator",
-        "//tensorflow/core/common_runtime/device:device_id",
         "//tensorflow/core/common_runtime/device:device_mem_allocator",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/memory",
@@ -174,7 +172,6 @@ cc_library(
         "//tensorflow/core:lib",
         "//tensorflow/core:lib_internal",
         "//tensorflow/core:protos_all_cc",
-        "//tensorflow/core/common_runtime/device:device_id",
         "//tensorflow/core/common_runtime/device:device_mem_allocator",
         "//tensorflow/core/framework:allocator",
     ],
@@ -187,11 +184,9 @@ cc_library(
     ],
     deps = [
         "pluggable_device_init_impl",
-        "//tensorflow/core:framework",
         "//tensorflow/core:framework_internal",
         "//tensorflow/core:lib",
         "//tensorflow/core:lib_internal",
-        "//tensorflow/core/platform:stream_executor",
     ],
 )
 
@@ -206,12 +201,9 @@ cc_library(
     copts = tf_copts(),
     linkstatic = 1,
     deps = [
-        "//tensorflow/core:core_cpu_lib",
-        "//tensorflow/core:framework",
         "//tensorflow/core:framework_internal",
         "//tensorflow/core:lib",
         "//tensorflow/core:lib_internal",
-        "//tensorflow/core/platform:stream_executor",
         "@local_xla//xla/stream_executor:platform_manager",
     ],
     alwayslink = 1,
