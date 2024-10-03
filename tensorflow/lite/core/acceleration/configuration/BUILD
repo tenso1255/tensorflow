@@ -104,13 +104,10 @@ cc_library(
         "//tensorflow/lite:__subpackages__",
     ],
     deps = [
-        "//tensorflow/lite:minimal_logging",
         "//tensorflow/lite/acceleration/configuration:configuration_fbs",
         "//tensorflow/lite/c:c_api_types",
         "//tensorflow/lite/core/acceleration/configuration:delegate_registry",
         "//tensorflow/lite/delegates/xnnpack:xnnpack_delegate",
-        "@com_google_absl//absl/base:log_severity",
-        "@com_google_absl//absl/memory",
     ],
     alwayslink = 1,  # For registration to always run.
 )
