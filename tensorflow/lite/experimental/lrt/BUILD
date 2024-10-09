@@ -17,6 +17,8 @@ package(
     default_visibility = ["//tensorflow/lite/experimental/lrt:__subpackages__"],
 )
 
+# TEST
+
 cc_binary(
     name = "apply_plugin",
     srcs = [

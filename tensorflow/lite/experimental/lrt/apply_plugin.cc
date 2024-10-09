@@ -64,6 +64,7 @@ static llvm::cl::opt<bool> dry_run(
 
 void DumpSubgraph(const LrtSubgraphT& subgraph, std::string_view label) {
 #ifndef NDEBUG
+  std::cerr << "test chaneg" << "\n";
   std::cerr << "===== " << label << " =====\n";
   for (auto op : subgraph.ops) {
     debug::DumpOp(*op);
