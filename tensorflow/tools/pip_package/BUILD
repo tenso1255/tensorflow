@@ -1,6 +1,7 @@
 # Description:
 #  Tools for building the TensorFlow pip package.
 
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("@local_config_cuda//cuda:build_defs.bzl", "if_cuda")
 load("@local_config_syslibs//:build_defs.bzl", "if_not_system_lib")
 load(
@@ -245,6 +246,7 @@ py_binary(
     main = "build_pip_package.py",
     deps = [
         "//tensorflow/tools/pip_package/utils:py_utils",
+        "@pypi_auditwheel//:pkg",
         "@pypi_setuptools//:pkg",
         "@pypi_wheel//:pkg",
     ],
@@ -268,6 +270,19 @@ transitive_py_deps(
     deps = COMMON_PIP_DEPS,
 )
 
+bool_flag(
+    name = "wheel_compliance",
+    # TODO(ybaturina): Enable the flag by default when hermetic C++ toolchain is ready.
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "enable_wheel_compliance_verification",
+    flag_values = {
+        ":wheel_compliance": "True",
+    },
+)
+
 tf_wheel(
     name = "wheel",
     headers = [
@@ -275,6 +290,12 @@ tf_wheel(
         ":licenses",
         "//tensorflow/core:protos_all_proto_srcs",
     ],
+    linux_wheel_compliance_tag = select({
+        "@platforms//cpu:aarch64": "manylinux_2_17_aarch64",
+        "@platforms//cpu:arm64": "manylinux_2_17_aarch64",
+        "@platforms//cpu:x86_64": "manylinux_2_17_x86_64",
+        "//conditions:default": "",
+    }),
     platform_name = select({
         "@platforms//os:osx": "macosx",
         "@platforms//os:macos": "macosx",
@@ -303,6 +324,10 @@ tf_wheel(
         ],
         "//tensorflow:windows": ["//tensorflow/python:pywrap_tensorflow_import_lib_file"],
     }) + if_mkl_ml(["@local_xla//xla/tsl/mkl:intel_binary_blob"]),
+    verify_wheel_compliance = select({
+        ":enable_wheel_compliance_verification": True,
+        "//conditions:default": False,
+    }),
     xla_aot_compiled = [
         "//tensorflow/compiler/tf2xla:xla_compiled_cpu_runtime_srcs",
         ":xla_cmake",

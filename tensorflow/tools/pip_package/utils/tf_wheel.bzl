@@ -57,12 +57,12 @@ def _get_full_wheel_name(platform_name, platform_tag):
 
 def _tf_wheel_impl(ctx):
     include_cuda_libs = ctx.attr.include_cuda_libs[BuildSettingInfo].value
-    if include_cuda_libs:
-        override_include_cuda_libs = ctx.attr.override_include_cuda_libs[BuildSettingInfo].value
-        if not override_include_cuda_libs:
-            fail("TF wheel shouldn't be built with CUDA dependencies." +
-                 " Please provide `--config=cuda_wheel` for bazel build command." +
-                 " If you absolutely need to add CUDA dependencies, provide `--@local_config_cuda//cuda:override_include_cuda_libs=true`.")
+    override_include_cuda_libs = ctx.attr.override_include_cuda_libs[BuildSettingInfo].value
+    if include_cuda_libs and not override_include_cuda_libs:
+        fail("TF wheel shouldn't be built with CUDA dependencies." +
+             " Please provide `--config=cuda_wheel` for bazel build command." +
+             " If you absolutely need to add CUDA dependencies, provide" +
+             " `--@local_config_cuda//cuda:override_include_cuda_libs=true`.")
     executable = ctx.executable.wheel_binary
 
     full_wheel_name = _get_full_wheel_name(
@@ -75,6 +75,10 @@ def _tf_wheel_impl(ctx):
         wheel_dir = wheel_dir_name,
         wheel_name = full_wheel_name,
     ))
+    auditwheel_log = None
+    check_wheel_compliance = (ctx.attr.platform_name == "linux" and
+                              ctx.attr.verify_wheel_compliance and
+                              ctx.attr.linux_wheel_compliance_tag)
     args = ctx.actions.args()
     args.add("--project-name", WHEEL_NAME)
     args.add("--platform", _get_wheel_platform_name(
@@ -84,7 +88,9 @@ def _tf_wheel_impl(ctx):
     args.add("--collab", str(WHEEL_COLLAB))
     args.add("--output-name", output_dir.path)
     args.add("--version", VERSION)
-
+    if check_wheel_compliance:
+        auditwheel_log = ctx.actions.declare_file("auditwheel.log")
+        args.add("--auditwheel-log-path", auditwheel_log.path)
     headers = ctx.files.headers[:]
     for f in headers:
         args.add("--headers=%s" % (f.path))
@@ -104,10 +110,23 @@ def _tf_wheel_impl(ctx):
     ctx.actions.run(
         arguments = [args],
         inputs = srcs + headers + xla_aot,
-        outputs = [output_dir, output_file],
+        outputs = [output_dir, output_file] + ([auditwheel_log] if auditwheel_log else []),
         executable = executable,
     )
-    return [DefaultInfo(files = depset(direct = [output_file]))]
+    compliance_verification_log = None
+    if check_wheel_compliance:
+        compliance_verification_log = ctx.actions.declare_file("compliance_verification.log")
+        args.add("--compliance-tag", ctx.attr.linux_wheel_compliance_tag)
+        args.add("--compliance-verification-log-path", compliance_verification_log.path)
+        ctx.actions.run(
+            arguments = [args],
+            inputs = [auditwheel_log],
+            outputs = [compliance_verification_log],
+            executable = executable,
+        )
+
+    verification_output = [compliance_verification_log] if compliance_verification_log else []
+    return [DefaultInfo(files = depset(direct = [output_file] + verification_output))]
 
 tf_wheel = rule(
     attrs = {
@@ -123,6 +142,8 @@ tf_wheel = rule(
         "override_include_cuda_libs": attr.label(default = Label("@local_config_cuda//cuda:override_include_cuda_libs")),
         "platform_tag": attr.string(mandatory = True),
         "platform_name": attr.string(mandatory = True),
+        "verify_wheel_compliance": attr.bool(default = False),
+        "linux_wheel_compliance_tag": attr.string(),
     },
     implementation = _tf_wheel_impl,
 )
