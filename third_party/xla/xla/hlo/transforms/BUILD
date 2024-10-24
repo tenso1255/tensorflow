@@ -1071,7 +1071,6 @@ cc_library(
     srcs = ["collectives/all_reduce_combiner.cc"],
     hdrs = ["collectives/all_reduce_combiner.h"],
     deps = [
-        "//xla:array2d",
         "//xla:shape_util",
         "//xla:status_macros",
         "//xla:xla_data_proto_cc",
@@ -1082,8 +1081,8 @@ cc_library(
         "//xla/service:all_reduce_key",
         "//xla/service:collective_combiner_utils",
         "//xla/service:hlo_domain_map",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
