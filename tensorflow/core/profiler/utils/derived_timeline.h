@@ -33,13 +33,21 @@ limitations under the License.
 namespace tensorflow {
 namespace profiler {
 
+// Store the mapping from child scope range id to parent scope range id, which
+// logically form a scope range call stack tree/forest.
+typedef absl::flat_hash_map<int64_t /* child_scope_range_id */,
+                            int64_t /* parent_scope_range_id */>
+    ScopeRangeCallStackMap;
+
 // Helper for deriving XEvents.
 class DerivedXEventBuilder {
  public:
-  DerivedXEventBuilder(XEventBuilder event, std::optional<int64_t> group_id);
+  DerivedXEventBuilder(XEventBuilder event, std::optional<int64_t> group_id,
+                       std::optional<int64_t> scope_range_id);
 
   bool ShouldExpand(const XEventMetadata& event_metadata,
-                    std::optional<int64_t> group_id) const;
+                    std::optional<int64_t> group_id,
+                    std::optional<int64_t> scope_range_id) const;
 
   void Expand(tsl::profiler::Timespan event_span);
   tsl::profiler::Timespan GetTimespan() const { return event_.GetTimespan(); }
@@ -55,14 +63,16 @@ class DerivedXEventBuilder {
  private:
   XEventBuilder event_;
   std::optional<int64_t> group_id_;
+  std::optional<int64_t> scope_range_id_;
 };
 
 // Helper for deriving an XLine from events in another XLine.
 class DerivedXLineBuilder {
  public:
-  DerivedXLineBuilder(XPlaneBuilder* plane, int64_t line_id,
-                      absl::string_view name, int64_t timestamp_ns,
-                      std::vector<DerivedXLineBuilder*> dependent_lines);
+  DerivedXLineBuilder(
+      XPlaneBuilder* plane, int64_t line_id, absl::string_view name,
+      int64_t timestamp_ns, std::vector<DerivedXLineBuilder*> dependent_lines,
+      const ScopeRangeCallStackMap* scope_range_call_stack = nullptr);
 
   XLineBuilder& Line() { return line_; }
 
@@ -74,13 +84,15 @@ class DerivedXLineBuilder {
   //   HLO module, source: both group_id and low_level_event_name are NOT used.
   void ExpandOrAddEvent(const XEventMetadata& event_metadata,
                         tsl::profiler::Timespan event_span,
-                        std::optional<int64_t> group_id);
+                        std::optional<int64_t> group_id,
+                        std::optional<int64_t> scope_range_id);
 
   // The multi-level version of ExpandOrAddEvent. Here, the XEvents at different
   // levels all share the same group_id and low_level_event_name.
   void ExpandOrAddEvents(
       const std::vector<XEventMetadata*>& events_metadata_per_level,
-      tsl::profiler::Timespan event_span, std::optional<int64_t> group_id);
+      tsl::profiler::Timespan event_span, std::optional<int64_t> group_id,
+      std::optional<int64_t> scope_range_id);
 
   // Reset the last events lower than or equal to the given level.
   void ResetLastEvents(int level = 0);
@@ -101,6 +113,10 @@ class DerivedXLineBuilder {
     return cuda_graph_id_metadata_;
   }
 
+  const XStatMetadata* GetScopeRangeIdMetadata() const {
+    return scope_range_id_metadata_;
+  }
+
  private:
   // If the last event of the given level has the same metadata, expands it to
   // include the time until the given event's end time.
@@ -110,17 +126,20 @@ class DerivedXLineBuilder {
   // parent event(s).
   void ExpandOrAddLevelEvent(const XEventMetadata& event_metadata,
                              tsl::profiler::Timespan event_span,
-                             std::optional<int64_t> group_id, int level);
+                             std::optional<int64_t> group_id,
+                             std::optional<int64_t> scope_range_id, int level);
   void AdjustDurationForTraceViewer(int level);
 
   const XStatMetadata* group_id_stat_metadata_ = nullptr;
   const XStatMetadata* correlation_id_metadata_ = nullptr;
   const XStatMetadata* cuda_graph_id_metadata_ = nullptr;
+  const XStatMetadata* scope_range_id_metadata_ = nullptr;
 
   XLineBuilder line_;
   absl::flat_hash_map<int, std::optional<DerivedXEventBuilder>>
       last_event_by_level_;
   std::vector<DerivedXLineBuilder*> dependent_lines_;
+  const ScopeRangeCallStackMap* scope_range_call_stack_ = nullptr;
 };
 
 struct Symbol {
@@ -140,7 +159,8 @@ void ProcessTfOpEvent(absl::string_view tf_op_full_name,
                       std::optional<int64_t> group_id,
                       XPlaneBuilder& plane_builder,
                       DerivedXLineBuilder& tf_name_scope_line_builder,
-                      DerivedXLineBuilder& tf_op_line_builder);
+                      DerivedXLineBuilder& tf_op_line_builder,
+                      std::optional<int64_t> scope_range_id = std::nullopt);
 
 // Derives "Steps" line from group_id XStat in XEvents.
 void DeriveStepEventsFromGroups(
@@ -152,8 +172,9 @@ void DeriveStepEventsFromGroups(
 // stored as XStats in XEvents corresponding to GPU Kernels. Consecutive
 // annotations with the same value are merged into a single event except for XLA
 // modules. The device_trace is both input and output.
-void DeriveEventsFromAnnotations(const SymbolResolver& symbol_resolver,
-                                 XPlane* device_trace);
+void DeriveEventsFromAnnotations(
+    const SymbolResolver& symbol_resolver, XPlane* device_trace,
+    const ScopeRangeCallStackMap* scope_range_call_stack = nullptr);
 
 // Derives "Launch Activities Summary" line from host trace.
 void DeriveEventsFromHostTrace(

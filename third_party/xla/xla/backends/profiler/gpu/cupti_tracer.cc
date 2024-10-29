@@ -825,6 +825,20 @@ class GuardedCallbackAnnotationsAndEvents {
     annotations_and_events_.event_queue().Push(std::move(event));
   }
 
+  void AddScopeCallIdSequence(const std::vector<int64_t> &sequence) {
+    if (sequence.size() > 1) {
+      const int64_t *head = sequence.data();
+      const int64_t *curr = &sequence.back();
+
+      tsl::mutex_lock lock(mu_);
+      ScopeCallIdTree &tree = annotations_and_events_.scope_range_call_stack();
+      tree.emplace(*curr, *(curr - 1));
+      for (--curr; curr > head && tree.count(*curr) == 0; --curr) {
+        tree.emplace(*curr, *(curr - 1));
+      }
+    }
+  }
+
  private:
   tsl::mutex mu_;
   CallbackAnnotationsAndEvents annotations_and_events_ TF_GUARDED_BY(mu_);
@@ -851,10 +865,15 @@ absl::Status AddDriverApiCallbackEvent(
     return absl::OkStatus();
   }
   tracer->IncCallbackEventCount();
+  const std::vector<int64_t> &namescope_sequence =
+      AnnotationStack::GetScopeCallIds();
+  guarded_annotations_and_events.AddScopeCallIdSequence(namescope_sequence);
   CuptiTracerEvent event{};
   event.correlation_id = cbdata->correlationId;
   event.annotation = annotation;
   event.nvtx_range = nvtx_range;
+  event.scope_range_id =
+      !namescope_sequence.empty() ? namescope_sequence.back() : 0;
   SetCallbackEventUponApiExit(event, cupti_interface, device_id, cbid, cbdata,
                               start_tsc, end_tsc);
   guarded_annotations_and_events.Push(*tracer, std::move(event));

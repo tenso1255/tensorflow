@@ -16,7 +16,9 @@ limitations under the License.
 #define XLA_TSL_PROFILER_BACKENDS_CPU_ANNOTATION_STACK_H_
 
 #include <atomic>
+#include <cstdint>
 #include <string_view>
+#include <vector>
 
 #include "tsl/platform/types.h"
 
@@ -36,6 +38,9 @@ class AnnotationStack {
 
   // Returns the annotation stack for the current thread.
   static const string& Get();
+
+  // Returns the call id sequence for the stack for the current thread.
+  static const std::vector<int64_t>& GetScopeCallIds();
 
   // Enables or disables the annotation stack.
   static void Enable(bool enable);
