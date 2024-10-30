@@ -614,6 +614,14 @@ class Delegate {
 #endif
   }
 
+  bool enable_slinky() const {
+#ifdef XNNPACK_DELEGATE_USE_SLINKY
+    return true;
+#else
+    return (options_.flags & TFLITE_XNNPACK_DELEGATE_FLAG_ENABLE_SLINKY) != 0;
+#endif
+  }
+
   bool support_variable_ops() const {
     if (options_.flags & TFLITE_XNNPACK_DELEGATE_FLAG_VARIABLE_OPERATORS) {
       return true;
@@ -1150,6 +1158,9 @@ class Subgraph {
     }
     if (context->profiler) {
       flags |= XNN_FLAG_BASIC_PROFILING;
+    }
+    if (delegate.enable_slinky()) {
+      flags |= XNN_FLAG_SLINKY_ENABLED;
     }
 
     if (delegate.weight_cache_provider_.IsActive() &&
