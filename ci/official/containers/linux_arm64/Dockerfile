@@ -1,11 +1,15 @@
 ################################################################################
-FROM ubuntu:20.04@sha256:fa17826afb526a9fc7250e0fbcbfd18d03fe7a54849472f86879d8bf562c629e as builder
+FROM ubuntu:20.04@sha256:fa17826afb526a9fc7250e0fbcbfd18d03fe7a54849472f86879d8bf562c629e as devel
 ################################################################################
 
 # Install devtoolset build dependencies
-COPY setup.packages.sh setup.packages.sh
-COPY builder.packages.txt builder.packages.txt
-RUN /setup.packages.sh /builder.packages.txt
+RUN echo "Installing devtoolset build dependencies"
+COPY setup.sources.sh /setup.sources.sh
+COPY setup.packages.sh /setup.packages.sh
+COPY builder.packages.txt /builder.packages.txt
+
+RUN /setup.sources.sh && /setup.packages.sh /builder.packages.txt
+
 RUN update-ca-certificates
 # Install devtoolset-9 in /dt10 with glibc 2.17 and libstdc++ 4.8, for building
 # manylinux2014-compatible packages.
@@ -22,29 +26,16 @@ COPY builder.patchelf/build_patchelf.sh /build_patchelf.sh
 COPY apt.conf /etc/apt/
 RUN /build_patchelf.sh
 
-################################################################################
-FROM nvidia/cuda:12.3.2-devel-ubuntu20.04@sha256:cf1404fc25ae571d26e2185d37bfa3258124ab24eb96b6ac930ac71908970d0b as devel
-################################################################################
-COPY --from=builder /dt10 /dt10
-COPY --from=builder /patchelf/patchelf_0.14.3-1_arm64.deb /patchelf/patchelf_0.14.3-1_arm64.deb
-
-# Install devtoolset devel dependencies
-COPY setup.sources.sh /setup.sources.sh
-COPY setup.packages.sh /setup.packages.sh
-COPY devel.packages.txt /devel.packages.txt
-COPY cuda.packages.txt /cuda.packages.txt
-RUN /setup.sources.sh && /setup.packages.sh /devel.packages.txt
-
 # Install various tools.
 # - bats: bash unit testing framework
 #         NOTE: v1.6.0 seems to have a bug that made "git" in setup_file break
 # - bazelisk: always use the correct bazel version
-# - buildifier: clean bazel build deps
+# - buildifier: clean bazel build depshttps://github.com/bazelbuild/buildtools/releases/download/v7.3.1/buildifier-linux-arm64
 # - buildozer: clean bazel build deps
-RUN git clone --branch v1.7.0 https://github.com/bats-core/bats-core.git && bats-core/install.sh /usr/local && rm -rf bats-core
-RUN wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --tries=5 https://github.com/bazelbuild/bazelisk/releases/download/v1.12.0/bazelisk-linux-arm64 -O /usr/local/bin/bazel && chmod +x /usr/local/bin/bazel
-RUN wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --tries=5 https://github.com/bazelbuild/buildtools/releases/download/4.2.5/buildifier-linux-arm64 -O /usr/local/bin/buildifier && chmod +x /usr/local/bin/buildifier
-RUN wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --tries=5 https://github.com/bazelbuild/buildtools/releases/download/4.2.5/buildozer-linux-arm64 -O /usr/local/bin/buildozer && chmod +x /usr/local/bin/buildozer
+RUN git clone --branch v1.11.0 https://github.com/bats-core/bats-core.git && bats-core/install.sh /usr/local && rm -rf bats-core
+RUN wget https://github.com/bazelbuild/bazelisk/releases/download/v1.21.0/bazelisk-linux-arm64 -O /usr/local/bin/bazel && chmod +x /usr/local/bin/bazel
+RUN wget https://github.com/bazelbuild/buildtools/releases/download/v7.3.1/buildifier-linux-arm64 -O /usr/local/bin/buildifier && chmod +x /usr/local/bin/buildifier
+RUN wget https://github.com/bazelbuild/buildtools/releases/download/v7.3.1/buildozer-linux-arm64 -O /usr/local/bin/buildozer && chmod +x /usr/local/bin/buildozer
 
 RUN groupadd -g 1001 buildslave && useradd -m -u 1001 -g buildslave buildslave
 RUN mkdir -p /tf/venv
@@ -67,7 +58,6 @@ RUN ln -s /usr/lib/llvm-18/bin/clang /usr/bin/clang
 
 # Setup JAX Python environment.
 FROM devel as jax
-RUN /setup.packages.sh /cuda.packages.txt
 COPY jax.requirements.txt /devel.requirements.txt
 COPY setup.python.sh /setup.python.sh
 RUN /setup.python.sh python3.9 devel.requirements.txt
