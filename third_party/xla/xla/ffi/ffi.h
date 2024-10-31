@@ -115,8 +115,9 @@ class AnyBuffer {
 
   template <typename T>
   T* typed_data() const {
-    DCHECK(primitive_util::NativeToPrimitiveType<T>() == element_type())
-        << "Template type must match the underlying buffer dtype";
+    DCHECK(sizeof(T) == primitive_util::ByteWidth(element_type()))
+        << "Requested type must have the same byte width as the underlying "
+           "buffer dtype";
     return reinterpret_cast<T*>(buf_->data);
   }
 

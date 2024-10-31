@@ -479,8 +479,9 @@ class AnyBuffer {
 
   template <typename T>
   T* typed_data() const {
-    assert(internal::NativeTypeToCApiDataType<T>() == buf_->dtype &&
-           "Template type must match the underlying buffer dtype");
+    assert(sizeof(T) == ByteWidth(element_type()) &&
+           "Requested type must have the same byte width as the underlying "
+           "buffer dtype");
     return reinterpret_cast<T*>(buf_->data);
   }
 
