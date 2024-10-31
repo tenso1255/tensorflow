@@ -223,6 +223,15 @@ def _create_cuda_header_symlinks(repository_ctx):
     if repository_ctx.name == "cuda_nvcc":
         repository_ctx.symlink("../cuda_cudart/include/cuda.h", "include/cuda.h")
 
+def _create_cuda_version_file(repository_ctx, lib_name_to_version_dict):
+    key = "%{libcudart_version}"
+    major_cudart_version = lib_name_to_version_dict[key] if key in lib_name_to_version_dict else ""
+    if repository_ctx.name == "cuda_cudart":
+        repository_ctx.file(
+            "cuda_version.bzl",
+            "MAJOR_CUDA_VERSION = \"{}\"".format(major_cudart_version),
+        )
+
 def use_local_path(repository_ctx, local_path, dirs):
     # buildifier: disable=function-docstring-args
     """Creates repository using local redistribution paths."""
@@ -245,6 +254,7 @@ def use_local_path(repository_ctx, local_path, dirs):
         repository_ctx,
         lib_name_to_version_dict,
     )
+    _create_cuda_version_file(repository_ctx, lib_name_to_version_dict)
     repository_ctx.file("version.txt", major_version)
 
 def _use_local_cuda_path(repository_ctx, local_cuda_path):
@@ -344,6 +354,7 @@ def _use_downloaded_cuda_redistribution(repository_ctx):
         lib_name_to_version_dict,
     )
     _create_cuda_header_symlinks(repository_ctx)
+    _create_cuda_version_file(repository_ctx, lib_name_to_version_dict)
     repository_ctx.file("version.txt", major_version)
 
 def _cuda_repo_impl(repository_ctx):
