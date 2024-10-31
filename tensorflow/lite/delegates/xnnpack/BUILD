@@ -33,6 +33,12 @@ config_setting(
     define_values = {"xnnpack_use_latest_ops": "true"},
 )
 
+# Force XNNPACK to use Slinky in the delegate (if possible).
+config_setting(
+    name = "xnnpack_use_slinky_explicit",
+    define_values = {"xnnpack_use_slinky": "true"},
+)
+
 # Force XNNPACK to enable subgraph reshaping.
 config_setting(
     name = "xnnpack_enable_subgraph_reshaping_explicit",
@@ -231,6 +237,9 @@ cc_library(
         ":xnnpack_use_latest_ops_explicit": ["-DXNNPACK_DELEGATE_USE_LATEST_OPS=1"],
         # copybara:uncomment "//conditions:default": [],
         "//conditions:default": ["-DXNNPACK_DELEGATE_USE_LATEST_OPS=1"],  # copybara:comment
+    }) + select({
+        ":xnnpack_use_slinky_explicit": ["-DXNNPACK_DELEGATE_USE_SLINKY=1"],
+        "//conditions:default": [],
     }) + select({
         ":xnnpack_use_transient_indirection_buffers_explicit": ["-DXNNPACK_DELEGATE_USE_TRANSIENT_INDIRECTION_BUFFERS=1"],
         "//conditions:default": [],
