@@ -663,7 +663,8 @@ bool IsHostPlane(const XPlane& plane) {
          plane.name() == kMetadataPlaneName ||
          plane.name() == kSyscallsPlaneName ||
          plane.name() == kPythonTracerPlaneName ||
-         plane.name() == kCuptiDriverApiPlaneName;
+         plane.name() == kCuptiDriverApiPlaneName ||
+         plane.name() == kNamescopeStackTreePlaneName;
 }
 
 bool IsDevicePlane(const XPlane& plane) {

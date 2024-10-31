@@ -17,8 +17,10 @@ limitations under the License.
 
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -35,36 +37,49 @@ static auto GetAnnotationData(const std::atomic<int>& atomic) {
     int generation = 0;
     std::vector<size_t> stack;
     std::string string;
+    std::vector<int64_t> scope_call_id_stack;
   } data;
   int generation = atomic.load(std::memory_order_acquire);
   if (generation != data.generation) {
     data = {generation};
   }
-  return std::make_pair(&data.stack, &data.string);
+  return std::make_tuple(&data.stack, &data.string, &data.scope_call_id_stack);
 };
 
 void AnnotationStack::PushAnnotation(std::string_view name) {
-  auto [stack, string] = GetAnnotationData(generation_);
+  static std::atomic<int64_t> scope_call_id = 0;
+
+  auto [stack, string, scope_call_id_stack] = GetAnnotationData(generation_);
   stack->push_back(string->size());
   if (!string->empty()) {
-    return absl::StrAppend(
+    absl::StrAppend(
         string, "::", absl::string_view(name.data(), name.size())  // NOLINT
     );
+  } else {
+    string->assign(name);
   }
-  string->assign(name);
+  int64_t scope_call_id_value = ++scope_call_id;
+  if (scope_call_id_value == 0) scope_call_id_value = ++scope_call_id;
+  scope_call_id_stack->push_back(scope_call_id_value);
 }
 
 void AnnotationStack::PopAnnotation() {
-  auto [stack, string] = GetAnnotationData(generation_);
+  auto [stack, string, scope_call_id_stack] = GetAnnotationData(generation_);
   if (stack->empty()) {
-    return string->clear();
+    string->clear();
+    scope_call_id_stack->clear();
   }
   string->resize(stack->back());
   stack->pop_back();
+  scope_call_id_stack->pop_back();
 }
 
 const string& AnnotationStack::Get() {
-  return *std::get<std::string*>(GetAnnotationData(generation_));
+  return *std::get<1>(GetAnnotationData(generation_));
+}
+
+const std::vector<int64_t>& AnnotationStack::GetScopeCallIds() {
+  return *std::get<2>(GetAnnotationData(generation_));
 }
 
 void AnnotationStack::Enable(bool enable) {
