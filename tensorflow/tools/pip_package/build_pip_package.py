@@ -26,12 +26,14 @@ To not break the TF API, we pretend that it's still part of the it.
 
 import argparse
 import glob
+import io
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
-
+from auditwheel import main_show
 from tensorflow.tools.pip_package.utils.utils import copy_file
 from tensorflow.tools.pip_package.utils.utils import create_init_files
 from tensorflow.tools.pip_package.utils.utils import is_macos
@@ -61,6 +63,19 @@ def parse_args() -> argparse.Namespace:
                       action="append")
   parser.add_argument("--version", help="TF version")
   parser.add_argument("--collab", help="True if collaborator build")
+  parser.add_argument(
+      "--compliance-tag", help="ManyLinux compliance tag", required=False
+  )
+  parser.add_argument(
+      "--auditwheel-log-path",
+      help="Path to file with auditwheel execution results",
+      required=False,
+  )
+  parser.add_argument(
+      "--compliance-verification-log-path",
+      help="Path to file with compliance verification results",
+      required=False,
+  )
   return parser.parse_args()
 
 
@@ -395,19 +410,94 @@ def build_wheel(
   )
 
 
+def audit_wheel(wheel_dir: str, auditwheel_log_path: str) -> None:
+  """Run auditwheel on the wheel.
+
+  Args:
+    wheel_dir: directory where the wheel will be stored
+    auditwheel_log_path: path to file with auditwheel execution results
+  """
+  stringio = io.StringIO()
+  previous_stdout = sys.stdout
+  sys.stdout = stringio
+
+  auditwheel_parser = argparse.ArgumentParser(
+      description="Cross-distro Python wheels."
+  )
+  sub_parsers = auditwheel_parser.add_subparsers(metavar="command", dest="cmd")
+  main_show.configure_parser(sub_parsers)
+  auditwheel_args = argparse.Namespace(
+      WHEEL_FILE=os.path.join(f"{wheel_dir}", os.listdir(f"{wheel_dir}")[0]),
+      verbose=1,
+  )
+  main_show.execute(args=auditwheel_args, p=auditwheel_parser)
+
+  sys.stdout = previous_stdout
+  auditwheel_output = stringio.getvalue()
+  with open(auditwheel_log_path, "w") as log_file:
+    log_file.write(auditwheel_output)
+
+
+def verify_wheel_compliance(
+    auditwheel_log_path: str,
+    compliance_tag: str,
+    verification_log_path: str,
+) -> None:
+  """Verify wheel compliance.
+
+  Args:
+    auditwheel_log_path: path to file with auditwheel execution results
+    compliance_tag: manyLinux compliance tag
+    verification_log_path: path to file with compliance verification results
+
+  Raises:
+    RuntimeError: if the wheel is not manyLinux compliant.
+  """
+  regex = 'following platform tag: "{}"'.format(compliance_tag)
+  auditwheel_output = ""
+  with open(auditwheel_log_path, "r") as auditwheel_log:
+    auditwheel_output = auditwheel_log.read()
+  if re.search(regex, auditwheel_output):
+    with open(verification_log_path, "w") as verification_log:
+      verification_log.write(
+          "The wheel is {tag} compliant:\n{log}".format(
+              tag=compliance_tag, log=auditwheel_output
+          )
+      )
+  else:
+    raise RuntimeError(
+        (
+            "The wheel is not compliant with tag {tag}."
+            + " If you want to disable this check, please provide"
+            + " `--//tensorflow/tools/pip_package:wheel_compliance=false`."
+            + "\n{result}"
+        ).format(tag=compliance_tag, result=auditwheel_output)
+    )
+
+
 if __name__ == "__main__":
   args = parse_args()
-  temp_dir = tempfile.TemporaryDirectory(prefix="tensorflow_wheel")
-  temp_dir_path = temp_dir.name
-  try:
-    prepare_wheel_srcs(args.headers, args.srcs, args.xla_aot,
-                       temp_dir_path, args.version)
-    build_wheel(
-        os.path.join(os.getcwd(), args.output_name),
-        temp_dir_path,
-        args.project_name,
-        args.platform,
-        args.collab,
+  if args.compliance_tag:
+    verify_wheel_compliance(
+        args.auditwheel_log_path,
+        args.compliance_tag,
+        args.compliance_verification_log_path,
     )
-  finally:
-    temp_dir.cleanup()
+  else:
+    temp_dir = tempfile.TemporaryDirectory(prefix="tensorflow_wheel")
+    temp_dir_path = temp_dir.name
+    try:
+      prepare_wheel_srcs(
+          args.headers, args.srcs, args.xla_aot, temp_dir_path, args.version
+      )
+      build_wheel(
+          os.path.join(os.getcwd(), args.output_name),
+          temp_dir_path,
+          args.project_name,
+          args.platform,
+          args.collab,
+      )
+      if args.auditwheel_log_path:
+        audit_wheel(args.output_name, args.auditwheel_log_path)
+    finally:
+      temp_dir.cleanup()
