@@ -40,7 +40,7 @@ else
   fi
 fi
 
-AR_IMAGE_PATH="us-central1-docker.pkg.dev/tensorflow-sigs/tensorflow/build-arm64"
+AR_IMAGE_PATH="us-central1-docker.pkg.dev/tensorflow-sigs/tensorflow/ml-build-arm64-test"
 
 # Build for both JAX and TF usage.  We do these in one place because they share
 # almost all of the same cache layers
